@@ -24,8 +24,8 @@ library(eurostat)
 rm(list=ls())
 #Setting directory for files with data; they should be in the same directory as the files of source code
 current_path = rstudioapi::getActiveDocumentContext()$path 
-setwd(dirname(current_path ))
-print( getwd() )
+setwd(dirname(current_path))
+print(getwd())
 
 
 #Function for Q-statistic
@@ -78,7 +78,7 @@ rStatistic <- function(predResid, d, l) {
 #On the other hand, if the statistic is lower than 1 we have to test 
 #if its reciprocal value (1/ratio) is lower than the above-mentioned critical value.
 #We assume that the residuals are homoscedastic if the test statistic does not exceed the critical value.
-#(see Commandeur and Koopman, p.90-96
+#(see Commandeur and Koopman, p.90-96)
 hStatistic <- function(predResid, d) {
   #Standardised residuals as predResid should be submitted into this function!
   #d - number of diffuse initial values in the state,
@@ -111,7 +111,7 @@ nStatistic <- function(predResid, d) {
   )
 }
 
-
+#Function to create a table with statistics
 dTable <- function(qStatistic, rStatistic, hStatistic, nStatistic){
   
 
@@ -158,41 +158,54 @@ cat(    sprintf(      paste(diagnosticTemplateTable, collapse="\n"),
 }
 
 
-
 #CHAPTER 1: Introduction####
 
 data <- log(read.table("UKdriversKSI.txt"))
 colnames(data) <- "logUKdriversKSI"
 time <- 1:nrow(data)
 fit <- lm(data$logUKdriversKSI~time)
-coefs <- coef(fit)
-f.stat <- summary(fit)$fstatistic[1]
-p <- pf(f.stat[1],f.stat[2],f.stat[3],lower.tail=F)
-  $fstatistic
-error.var <- summary(fit)$sigma^2
+(coef <- fit$coefficients) # Coefficients of regrerssion
+f.stat <- summary(fit)$fstatistic
+(f.stat.val <- f.stat[1]) # F-test value
+(f.stat.p <- pf(f.stat[1], f.stat[2], f.stat[3], lower.tail=F)) # p-value for F-test
+(error.var <- summary(fit)$sigma^2) # Error variance
 
-plot(data$logUKdriversKSI,  col = "darkgrey", xlab="",ylab = "log UK drivers KSI",pch=3,cex=0.5,
-     cex.lab=0.8,cex.axis=0.9,xlim=c(0,200))
+#Figure 1.1. Scatter plot of the log of the number of UK drivers KSI
+#against time (in months), including regression line
+plot(data$logUKdriversKSI,  col = "darkgrey", xlab="",ylab = "log UK drivers KSI",
+    pch=3,cex=0.5, cex.lab=0.8,cex.axis=0.9,xlim=c(0,200))
 abline(coefs , col = "blue", lwd  = 2, lty=2)
+title(main="Figure 1.1. Scatter plot of the log of the number of UK drivers KSI
+against time (in months), including regression line", cex.main=0.8)
 legend("topright",leg = c("log UK drivers KSI against time (in months)",
-                          "regression line"), cex = 0.5,lty = c(0, 2), col = c("darkgrey","blue"),
-       pch=c(3,NA), bty = "y",horiz = T)
+    "regression line"), cex = 0.5,lty = c(0, 2), col = c("darkgrey","blue"),
+    pch=c(3,NA), bty = "y",horiz = T)
 
+#Figure 1.2. Log of the number of UK drivers KSI plotted as a time series
 plot(ts(data$logUKdriversKSI),ylab="",xlab="",xlim = c(0,200), col = "darkgrey")
+title(main="Figure 1.2. Log of the number of UK drivers KSI plotted as a time series", 
+    cex.main=0.8)
 legend("topright",leg = "log UK drivers KSI",cex = 0.5,lty = 1, col = "darkgrey",horiz = T)
 
+#Figure1.4. Correlogram of random time series
 random.series <- rnorm(nrow(data))
 acf(c(random.series),15,main ="")
+title(main="Figure1.4. Correlogram of random time series", 
+      cex.main=0.8)
 legend("topright",leg = "ACF - random residuals",cex = 0.5,lty = 1, col = "black",horiz = T)
 
+#Figure 1.5. Correlogram of calssical regression residuals
 residuals <- residuals(fit)
 acf(c(residuals),15,main="")
+title(main="Figure 1.5. Correlogram of calssical regression residuals", 
+      cex.main=0.8)
 legend("topright",leg = "ACF - regression residuals",cex = 0.5,lty = 1, col = "black",horiz = T)
 
 
-#CHAPTER 2: The local level model####
+ #CHAPTER 2: The local level model####
 
 #2.1 Deterministic level####
+
 #Removing all objects except functions
 rm(list = setdiff(ls(), lsf.str())) 
 
@@ -212,9 +225,9 @@ fit <- fitSSM(model, inits = 0.001, updatefn = ownupdatefn, method = "BFGS")
 outKFS <- KFS(fit$model, smoothing = c("state", "mean", "disturbance"))
 
 d <- q <- 1 #Number of diffuse initial values in the state 
-w <- 1#Number of estimated hyperparameters (i.e. disturbance variances)
+w <- 1 #Number of estimated hyperparameters (i.e. disturbance variances)
 l <- 12 #Autocorrelation at lag l to be provided by r-statistic / ACF function
-k <- 15#First k autocorrelations to be used in Q-statistic
+k <- 15 #First k autocorrelations to be used in Q-statistic
 n <- 192 #Number of observations
 
 #Maximum likelihood 
@@ -222,7 +235,6 @@ n <- 192 #Number of observations
 
 #Akaike information criterion (AIC)
 (AIC <- (-2*logLik(fit$model)+2*(w+q))/n)
-
 
 #Maximum likelihood estimate of the irregular variance
 (H <- fit$model$H)
@@ -233,23 +245,35 @@ n <- 192 #Number of observations
 #Maximum likelihood estimate of the initial value of the level at time point t=1
 (initVal <- coef(outKFS$model)[1])
 
+#Figure 2.1. Deterministic level
+level <- outKFS$alphahat
+plot(dataUKdriversKSI , xlab= "", ylab = "", lty = 1)
+lines(level, lty = 3)
+title(main="Figure 2.1. Deterministic level", cex.main=0.8)
+legend("topright",leg = c("log UK drivers KSI", "deterministic level"), 
+       cex = 0.5, lty = c(1, 3), horiz = T)
 
-#Extracting residuals
-predResid <- rstandard(outKFS) #One-step-ahead prediction residuals (standardised)
-irregResid <- rstandard(outKFS, "pearson") #Auxiliary irregular  residuals (standardised)
-levelResid <- rstandard(outKFS, "state") #Auxiliary level  residuals (standardised)
-
-
+#Figure 2.2. Irregular component for deterministic level model
+irregResid <- residuals(outKFS, "pearson") #Auxiliary irregular residuals (non-standardised)
+plot(irregResid  , xlab= "", ylab = "", lty = 2)
+abline(h = 0, lty = 1)
+title(main="Figure 2.2. Irregular component for deterministic level model", cex.main=0.8)
+legend("topright",leg = "irregular",cex = 0.5, lty = 2, horiz = T)
 
 #Diagnostic for one-step-ahead prediction residuals (standardised)
+predResid <- rstandard(outKFS) 
 qStat <- qStatistic(predResid, k, w)
 rStat <- rStatistic(predResid, d, l)
 hStat <- hStatistic(predResid, d)
 nStat <- nStatistic(predResid, d)
 dTable(qStat, rStat, hStat, nStat)
 
+#Auxiliary level  residuals (standardised)
+#levelResid <- rstandard(outKFS, "state") 
+
 
 #2.2 Stochastic level####
+
 #Removing all objects except functions
 rm(list = setdiff(ls(), lsf.str())) 
 
@@ -265,7 +289,6 @@ ownupdatefn <- function(pars,model){
   model$Q[,,1] <- exp(pars[2])
   model
 }
-
 
 fit <- fitSSM(model, inits = c(0.001,0.001), updatefn = ownupdatefn ,method = "BFGS")
 outKFS <- KFS(fit$model, smoothing = c("state", "mean", "disturbance"))
@@ -292,19 +315,32 @@ n <- 192 #Number of observations
 #Maximum likelihood estimate of the initial value of the level at time point t=1
 (initVal <- coef(outKFS$model)[1])
 
-#Extracting residuals
-predResid <- rstandard(outKFS) #One-step-ahead prediction residuals (standardised)
-irregResid <- rstandard(outKFS, "pearson") #Auxiliary irregular  residuals (standardised)
-levelResid <- rstandard(outKFS, "state") #Auxiliary level  residuals (standardised)
+#Figure 2.3. Stochastic level
+level <- outKFS$alphahat
+plot(dataUKdriversKSI , xlab= "", ylab = "", lty = 1)
+lines(level, lty = 3)
+title(main="Figure 2.3. Stochastic level", cex.main=0.8)
+legend("topright",leg = c("log UK drivers KSI", "stochastic level"), 
+       cex = 0.5, lty = c(1, 3), horiz = T)
 
-
+#Figure 2.4. Irregular component for local level model
+irregResid <- residuals(outKFS, "pearson") #Auxiliary irregular residuals (non-standardised)
+plot(irregResid  , xlab= "", ylab = "", lty = 2)
+abline(h = 0, lty = 1)
+title(main="Figure 2.2. Irregular component for local level model", cex.main=0.8)
+legend("topright",leg = "irregular",cex = 0.5, lty = 2, horiz = T)
 
 #Diagnostic for one-step-ahead prediction residuals (standardised)
+predResid <- rstandard(outKFS) 
 qStat <- qStatistic(predResid, k, w)
 rStat <- rStatistic(predResid, d, l)
 hStat <- hStatistic(predResid, d)
 nStat <- nStatistic(predResid, d)
 dTable(qStat, rStat, hStat, nStat)
+
+#Auxiliary level  residuals (standardised)
+#levelResid <- rstandard(outKFS, "state") 
+
 
 #2.3 The local level model and Norwegian fatalities####
 
@@ -332,7 +368,6 @@ n <- 34 #Number of observations
 #Akaike information criterion (AIC)
 (AIC <- (-2*logLik(fit$model)+2*(w+q))/n)
 
-
 #Maximum likelihood estimate of the irregular variance
 (H <- fit$model$H)
 
@@ -342,17 +377,32 @@ n <- 34 #Number of observations
 #Maximum likelihood estimate of the initial value of the level at time point t=1
 (initVal <- coef(outKFS$model)[1])
 
-#Extracting residuals
-predResid <- rstandard(outKFS) #One-step-ahead prediction residuals (standardised)
-irregResid <- rstandard(outKFS, "pearson") #Auxiliary irregular  residuals (standardised)
-levelResid <- rstandard(outKFS, "state") #Auxiliary level  residuals (standardised)
+#Figure 2.5. Stochastic level for Norwegian fatalities
+level <- outKFS$alphahat
+plot(dataNOfatalities, xlab= "", ylab = "", lty = 1)
+lines(level, lty = 3)
+title(main="Figure 2.5. Stochastic level for Norwegian fatalities", cex.main=0.8)
+legend("topright",leg = c("log fatalities in Norway", "stochastic level"), 
+       cex = 0.5, lty = c(1, 3), horiz = T)
+
+#Figure 2.4. Irregular component for Norwegian fatalities
+irregResid <- residuals(outKFS, "pearson") #Auxiliary irregular residuals (non-standardised)
+plot(irregResid  , xlab= "", ylab = "", lty = 2)
+abline(h = 0, lty = 1)
+title(main="Figure 2.4. Irregular component for Norwegian fatalities", cex.main=0.8)
+legend("topleft",leg = "irregular",cex = 0.5, lty = 2, horiz = T)
 
 #Diagnostic for one-step-ahead prediction residuals (standardised)
+predResid <- rstandard(outKFS) 
 qStat <- qStatistic(predResid, k, w)
 rStat <- rStatistic(predResid, d, l)
 hStat <- hStatistic(predResid, d)
 nStat <- nStatistic(predResid, d)
 dTable(qStat, rStat, hStat, nStat)
+
+#Auxiliary level  residuals (standardised)
+#levelResid <- rstandard(outKFS, "state") 
+
 
 #Chapter 3: The local linear trend model####
 
@@ -1621,7 +1671,7 @@ legend("topright",leg = c("log(front seat KSI)", "log(rear seat KSI)"),
 #Figure 9.2 Level disturbances for rear seat (horizontal) versus front seat KSI (vertical)
 #in a seamingly unrelated model
 #Fit model before
-outKFS <- KFS(fit$model, smoothing = c("state", "mean", "disturbance"))
+outKFS <- KFS(fit$model, smoothing = c("state", "mean", "disturbance")) #double? repeated
 levelResid <- residuals(outKFS, "state") #Auxiliary level  residuals (standardised)
 colnames(levelResid) <- c("Front.seats", "Rear.seats")
 plot(x=levelResid[,"Rear.seats"], y=levelResid[,"Front.seats"], xlab = "Level disturbances for rear seat KSI", ylab = "Level disturbance for front seat KSI")
