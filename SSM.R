@@ -19,6 +19,8 @@ if(!(require(knitr))){install.packages('knitr')}
 library(knitr)
 if(!(require(eurostat))){install.packages('eurostat')}
 library(eurostat)
+if(!(require(dplyr))){install.packages('dplyr')}
+library(dplyr)
 
 #Cleaning workspace
 rm(list=ls())
@@ -210,8 +212,7 @@ legend("topright",leg = "ACF - regression residuals",cex = 0.5,lty = 1, col = "b
 rm(list = setdiff(ls(), lsf.str())) 
 
 #Loading data
-dataUKdriversKSI <- log(read.table("UKdriversKSI.txt"))
-dataUKdriversKSI <- ts(dataUKdriversKSI, start = 1969,frequency=12)
+dataUKdriversKSI <- log(read.table("UKdriversKSI.txt")) %>% ts(start = 1969,frequency=12)
 
 #Fitting model
 model <- SSModel(dataUKdriversKSI ~ SSMtrend(degree=1, Q=list(matrix(0))), H = matrix(NA))
@@ -278,8 +279,7 @@ dTable(qStat, rStat, hStat, nStat)
 rm(list = setdiff(ls(), lsf.str())) 
 
 #Loading data
-dataUKdriversKSI <- log(read.table("UKdriversKSI.txt"))
-dataUKdriversKSI <- ts(dataUKdriversKSI, start = 1969,frequency=12)
+dataUKdriversKSI <- log(read.table("UKdriversKSI.txt")) %>% ts(start = 1969,frequency=12)
 
 #Fitting model
 model <- SSModel(dataUKdriversKSI ~ SSMtrend(degree=1, Q=list(matrix(NA))), H = matrix(NA))
@@ -348,12 +348,17 @@ dTable(qStat, rStat, hStat, nStat)
 rm(list = setdiff(ls(), lsf.str())) 
 
 #Loading data
-dataNOfatalities <- log(read.table("NorwayFinland.txt")[,2])
-dataNOfatalities <- ts(dataNOfatalities, start = 1970, frequency=1)
+dataNOfatalities <- log(read.table("NorwayFinland.txt")[,2]) %>% ts(start = 1970, frequency=1)
 
 #Fitting model
 model <- SSModel(dataNOfatalities ~ SSMtrend(degree=1, Q=list(matrix(NA))), H = matrix(NA))
-fit <- fitSSM(model, inits = c(0.001,0.001) ,method = "BFGS")
+ownupdatefn <- function(pars,model){
+  model$H[,,1] <- exp(pars[1])
+  model$Q[,,1] <- exp(pars[2])
+  model
+}
+
+fit <- fitSSM(model, inits = c(0.001,0.001), updatefn = ownupdatefn ,method = "BFGS")
 outKFS <- KFS(fit$model, smoothing = c("state", "mean", "disturbance"))
 
 d <- q <- 1 #Number of diffuse initial values in the state 
@@ -407,6 +412,7 @@ dTable(qStat, rStat, hStat, nStat)
 #Chapter 3: The local linear trend model####
 
 #3.1 Deterministic level and slope####
+
 #Removing all objects except functions
 rm(list = setdiff(ls(), lsf.str())) 
 
@@ -415,6 +421,9 @@ dataUKdriversKSI <- log(read.table("UKdriversKSI.txt"))
 dataUKdriversKSI <- ts(dataUKdriversKSI, start = 1969,frequency=12)
 
 #Fitting model
+fit <- fitSSM(inits = c(0.001, 0.001), model = model, updatefn = ownupdatefn, method = "BFGS")
+
+
 model <- SSModel(dataUKdriversKSI ~ SSMtrend(degree=2, Q=list(matrix(0), matrix(0))), H = matrix(NA))
 fit <- fitSSM(model, inits = c(0.001) ,method = "BFGS")
 outKFS <- KFS(fit$model, smoothing = c("state", "mean", "disturbance"))
@@ -441,27 +450,24 @@ n <- 192 #Number of observations
 #Maximum likelihood estimate of the initial values of the level and the slope at time point t=1
 (initVal <- coef(outKFS$model)[1,])
 
-#Extracting residuals
-predResid <- rstandard(outKFS) #One-step-ahead prediction residuals (standardised)
-irregResid <- rstandard(outKFS, "pearson") #Auxiliary irregular  residuals (standardised)
-levelResid <- rstandard(outKFS, "state") #Auxiliary level  residuals (standardised)
-
-
-
 #Diagnostic for one-step-ahead prediction residuals (standardised)
+predResid <- rstandard(outKFS) 
 qStat <- qStatistic(predResid, k, w)
 rStat <- rStatistic(predResid, d, l)
 hStat <- hStatistic(predResid, d)
 nStat <- nStatistic(predResid, d)
 dTable(qStat, rStat, hStat, nStat)
 
-#3.2 Stochastic level and slope####
+#Auxiliary level  residuals (standardised)
+#levelResid <- rstandard(outKFS, "state") 
+ 
+
+#3.2 Stochastic level and slope#### Update function to be added
 #Removing all objects except functions
 rm(list = setdiff(ls(), lsf.str())) 
 
 #Loading data
-dataUKdriversKSI <- log(read.table("UKdriversKSI.txt"))
-dataUKdriversKSI <- ts(dataUKdriversKSI, start = 1969,frequency=12)
+dataUKdriversKSI <- log(read.table("UKdriversKSI.txt")) %>% ts(start = 1969,frequency=12)
 
 #Fitting model
 model <- SSModel(dataUKdriversKSI ~ SSMtrend(degree=2, Q=list(matrix(NA), matrix(NA))), H = matrix(NA))
@@ -490,18 +496,32 @@ n <- 192 #Number of observations
 #Maximum likelihood estimate of the initial values of the level and the slope at time point t=1
 (initVal <- coef(outKFS$model)[1,])
 
-#Extracting residuals
-predResid <- rstandard(outKFS) #One-step-ahead prediction residuals (standardised)
-irregResid <- rstandard(outKFS, "pearson") #Auxiliary irregular  residuals (standardised)
-levelResid <- rstandard(outKFS, "state") #Auxiliary level  residuals (standardised)
+#Figure 3.1. Trend of stochastic linear trend model
+alphahat <- outKFS$alphahat
+plot(dataUKdriversKSI , xlab= "", ylab = "", lty = 1)
+lines(alphahat[, "level"], lty = 3)
+title(main="Figure 3.1. Trend of stochastic linear trend model", cex.main=0.8)
+legend("topright",leg = c("log UK drivers KSI", "stochastic level and slope"), 
+       cex = 0.5, lty = c(1, 3), horiz = T)
 
+#Figure 2.4. Irregular component for local level model
+irregResid <- residuals(outKFS, "pearson") #Auxiliary irregular residuals (non-standardised)
+plot(irregResid  , xlab= "", ylab = "", lty = 2)
+abline(h = 0, lty = 1)
+title(main="Figure 2.2. Irregular component for local level model", cex.main=0.8)
+legend("topright",leg = "irregular",cex = 0.5, lty = 2, horiz = T)
 
 #Diagnostic for one-step-ahead prediction residuals (standardised)
+predResid <- rstandard(outKFS) 
 qStat <- qStatistic(predResid, k, w)
 rStat <- rStatistic(predResid, d, l)
 hStat <- hStatistic(predResid, d)
 nStat <- nStatistic(predResid, d)
 dTable(qStat, rStat, hStat, nStat)
+
+#Auxiliary level  residuals (standardised)
+#levelResid <- rstandard(outKFS, "state") 
+
 
 #3.3 Stochastic level and deterministic slope####
 #Removing all objects except functions
