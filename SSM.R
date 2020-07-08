@@ -114,8 +114,10 @@ nStatistic <- function(predResid, d) {
 }
 
 #Function to create a table with statistics
-dTable <- function(qStatistic, rStatistic, hStatistic, nStatistic){
-  
+dTable <- function(qStatistic, rStatistic, hStatistic, nStatistic, title){
+
+cat(title)
+cat("\n")
 
 diagnosticTemplateTable <- c(
   
@@ -214,7 +216,7 @@ rm(list = setdiff(ls(), lsf.str()))
 #Loading data
 dataUKdriversKSI <- log(read.table("UKdriversKSI.txt")) %>% ts(start = 1969,frequency = 12)
 
-#Fitting model
+#Defining model
 model <- SSModel(dataUKdriversKSI ~ SSMtrend(degree = 1, Q = list(matrix(0))), H = matrix(NA))
 
 ownupdatefn <- function(pars,model){
@@ -222,14 +224,16 @@ model$H[,,1] <- exp(pars[1])
 model
 }
 
-fit <- fitSSM(model, inits = 0.001, updatefn = ownupdatefn, method = "BFGS")
-outKFS <- KFS(fit$model, smoothing = c("state", "mean", "disturbance"))
-
 d <- q <- 1 #Number of diffuse initial values in the state 
 w <- 1 #Number of estimated hyperparameters (i.e. disturbance variances)
 l <- 12 #Autocorrelation at lag l to be provided by r-statistic / ACF function
 k <- 15 #First k autocorrelations to be used in Q-statistic
 n <- 192 #Number of observations
+
+#Fitting model and getting output
+
+fit <- fitSSM(model, inits = 0.001, updatefn = ownupdatefn, method = "BFGS")
+outKFS <- KFS(fit$model, smoothing = c("state", "mean", "disturbance"))
 
 #Maximum likelihood 
 (maxLik <- logLik(fit$model)/n)
@@ -243,19 +247,23 @@ n <- 192 #Number of observations
 #Maximum likelihood estimate of the state disturbance variance 
 (Q <- fit$model$Q)
 
-#Maximum likelihood estimate of the initial value of the level at time point t = 1
-(initVal <- coef(outKFS$model)[1])
+#Smoothed estimates of states (level)
+level <- coef(outKFS$model)
+
+#Initial value of level
+(initLevel <- coef(outKFS$model)[1])
 
 #Figure 2.1. Deterministic level
-level <- outKFS$alphahat
 plot(dataUKdriversKSI , xlab = "", ylab = "", lty = 1)
 lines(level, lty = 3)
 title(main = "Figure 2.1. Deterministic level", cex.main = 0.8)
 legend("topright",leg = c("log UK drivers KSI", "deterministic level"), 
        cex = 0.5, lty = c(1, 3), horiz = T)
 
+#Auxiliary irregular residuals (non-standardised)
+irregResid <- residuals(outKFS, "pearson") 
+
 #Figure 2.2. Irregular component for deterministic level model
-irregResid <- residuals(outKFS, "pearson") #Auxiliary irregular residuals (non-standardised)
 plot(irregResid  , xlab = "", ylab = "", lty = 2)
 abline(h = 0, lty = 1)
 title(main = "Figure 2.2. Irregular component for deterministic level model", cex.main = 0.8)
@@ -267,7 +275,10 @@ qStat <- qStatistic(predResid, k, w)
 rStat <- rStatistic(predResid, d, l)
 hStat <- hStatistic(predResid, d)
 nStat <- nStatistic(predResid, d)
-dTable(qStat, rStat, hStat, nStat)
+
+#Table 2.1. Diagnostic tests for deterministic level model and log UK drivers KSI
+title = "Table 2.1. Diagnostic tests for deterministic level model and log UK drivers \nKSI"
+dTable(qStat, rStat, hStat, nStat, title)
 
 #Auxiliary level  residuals (standardised)
 #levelResid <- rstandard(outKFS, "state") 
@@ -281,7 +292,7 @@ rm(list = setdiff(ls(), lsf.str()))
 #Loading data
 dataUKdriversKSI <- log(read.table("UKdriversKSI.txt")) %>% ts(start = 1969,frequency = 12)
 
-#Fitting model
+#Defining model
 model <- SSModel(dataUKdriversKSI ~ SSMtrend(degree = 1, Q = list(matrix(NA))), H = matrix(NA))
 
 ownupdatefn <- function(pars,model){
@@ -290,16 +301,16 @@ ownupdatefn <- function(pars,model){
   model
 }
 
-fit <- fitSSM(model, inits = log(c(0.001, 0.001)), updatefn = ownupdatefn, method = "BFGS")
-outKFS <- KFS(fit$model, smoothing = c("state", "mean", "disturbance"))
-outKFS$model$Q
-
 d <- q <- 1 #Number of diffuse initial values in the state 
 w <- 2#Number of estimated hyperparameters (i.e. disturbance variances)
 l <- 12 #Autocorrelation at lag l to be provided by r-statistic / ACF function
-k <- 15#First k autocorrelations to be used in Q-statisticlogLik <- logLik( ) dlmLL(dataUKdriversKSI, mod)
+k <- 15#First k autocorrelations to be used in Q-statistic
 n <- 192 #Number of observations
  
+#Fitting model and getting ouput
+fit <- fitSSM(model, inits = log(c(0.001, 0.001)), updatefn = ownupdatefn, method = "BFGS")
+outKFS <- KFS(fit$model, smoothing = c("state", "mean", "disturbance"))
+
 #Maximum likelihood 
 (maxLik <- logLik(fit$model, marginal = F)/n)
 
@@ -312,22 +323,26 @@ n <- 192 #Number of observations
 #Maximum likelihood estimate of the state disturbance variance 
 (Q <- fit$model$Q)
 
-#Maximum likelihood estimate of the initial value of the level at time point t = 1
-(initVal <- coef(outKFS$model)[1])
+#Smoothed estimates of states
+level <- coef(outKFS$model)
+
+#Initial value of level
+(initLevel <- level[1])
 
 #Figure 2.3. Stochastic level
-level <- outKFS$alphahat
 plot(dataUKdriversKSI , xlab = "", ylab = "", lty = 1)
 lines(level, lty = 3)
 title(main = "Figure 2.3. Stochastic level", cex.main = 0.8)
 legend("topright",leg = c("log UK drivers KSI", "stochastic level"), 
        cex = 0.5, lty = c(1, 3), horiz = T)
 
+#Auxiliary irregular residuals (non-standardised)
+irregResid <- residuals(outKFS, "pearson") 
+
 #Figure 2.4. Irregular component for local level model
-irregResid <- residuals(outKFS, "pearson") #Auxiliary irregular residuals (non-standardised)
 plot(irregResid  , xlab = "", ylab = "", lty = 2)
 abline(h = 0, lty = 1)
-title(main = "Figure 2.2. Irregular component for local level model", cex.main = 0.8)
+title(main = "Figure 2.4. Irregular component for local level model", cex.main = 0.8)
 legend("topright",leg = "irregular",cex = 0.5, lty = 2, horiz = T)
 
 #Diagnostic for one-step-ahead prediction residuals (standardised)
@@ -336,7 +351,10 @@ qStat <- qStatistic(predResid, k, w)
 rStat <- rStatistic(predResid, d, l)
 hStat <- hStatistic(predResid, d)
 nStat <- nStatistic(predResid, d)
-dTable(qStat, rStat, hStat, nStat)
+
+#Table 2.2. Diagnostic tests for local level model and log UK drivers KSI
+title = "Table 2.2. Diagnostic tests for local level model and log UK drivers KSI"
+dTable(qStat, rStat, hStat, nStat, title)
 
 #Auxiliary level  residuals (standardised)
 #levelResid <- rstandard(outKFS, "state") 
@@ -350,7 +368,7 @@ rm(list = setdiff(ls(), lsf.str()))
 #Loading data
 dataNOfatalities <- log(read.table("NorwayFinland.txt")[,2]) %>% ts(start = 1970, frequency = 1)
 
-#Fitting model
+#Defining model
 model <- SSModel(dataNOfatalities ~ SSMtrend(degree = 1, Q = list(matrix(NA))), H = matrix(NA))
 ownupdatefn <- function(pars,model){
   model$H[,,1] <- exp(pars[1])
@@ -358,14 +376,15 @@ ownupdatefn <- function(pars,model){
   model
 }
 
-fit <- fitSSM(model, inits = log(c(0.001,0.001)), updatefn = ownupdatefn, method = "BFGS")
-outKFS <- KFS(fit$model, smoothing = c("state", "mean", "disturbance"))
-
 d <- q <- 1 #Number of diffuse initial values in the state 
 w <- 2#Number of estimated hyperparameters (i.e. disturbance variances)
 l <- 4 #Autocorrelation at lag l to be provided by r-statistic / ACF function
 k <- 10#First k autocorrelations to be used in Q-statistic
 n <- 34 #Number of observations
+
+#Fitting model and getting output
+fit <- fitSSM(model, inits = log(c(0.001,0.001)), updatefn = ownupdatefn, method = "BFGS")
+outKFS <- KFS(fit$model, smoothing = c("state", "mean", "disturbance"))
 
 #Maximum likelihood 
 (maxLik <- logLik(fit$model)/n)
@@ -379,22 +398,26 @@ n <- 34 #Number of observations
 #Maximum likelihood estimate of the state disturbance variance 
 (Q <- fit$model$Q)
 
-#Maximum likelihood estimate of the initial value of the level at time point t = 1
-(initVal <- coef(outKFS$model)[1])
+#Smoothed estimates of states (level)
+level <- coef(outKFS$model)
+
+#Initial value of level
+(initLevel <- level[1])
 
 #Figure 2.5. Stochastic level for Norwegian fatalities
-level <- outKFS$alphahat
 plot(dataNOfatalities, xlab = "", ylab = "", lty = 1)
 lines(level, lty = 3)
 title(main = "Figure 2.5. Stochastic level for Norwegian fatalities", cex.main = 0.8)
 legend("topright",leg = c("log fatalities in Norway", "stochastic level"), 
        cex = 0.5, lty = c(1, 3), horiz = T)
 
-#Figure 2.4. Irregular component for Norwegian fatalities
-irregResid <- residuals(outKFS, "pearson") #Auxiliary irregular residuals (non-standardised)
+#Auxiliary irregular residuals (non-standardised)
+irregResid <- residuals(outKFS, "pearson") 
+
+#Figure 2.6. Irregular component for Norwegian fatalities
 plot(irregResid  , xlab = "", ylab = "", lty = 2)
 abline(h = 0, lty = 1)
-title(main = "Figure 2.4. Irregular component for Norwegian fatalities", cex.main = 0.8)
+title(main = "Figure 2.6. Irregular component for Norwegian fatalities", cex.main = 0.8)
 legend("topleft",leg = "irregular",cex = 0.5, lty = 2, horiz = T)
 
 #Diagnostic for one-step-ahead prediction residuals (standardised)
@@ -403,7 +426,10 @@ qStat <- qStatistic(predResid, k, w)
 rStat <- rStatistic(predResid, d, l)
 hStat <- hStatistic(predResid, d)
 nStat <- nStatistic(predResid, d)
-dTable(qStat, rStat, hStat, nStat)
+
+#Table 2.3. Diagnostic tests for local level model and log Norwegian fatalities
+title = "Table 2.3. Diagnostic tests for local level model and log Norwegian \nfatalities"
+dTable(qStat, rStat, hStat, nStat, title)
 
 #Auxiliary level  residuals (standardised)
 #levelResid <- rstandard(outKFS, "state") 
@@ -419,17 +445,19 @@ rm(list = setdiff(ls(), lsf.str()))
 #Loading data
 dataUKdriversKSI <- log(read.table("UKdriversKSI.txt")) %>% ts(start = 1969, frequency = 12)
 
-#Fitting model
+#Defining model
 model <- SSModel(dataUKdriversKSI ~ SSMtrend(degree = 2, Q = list(matrix(0), matrix(0))), H = matrix(NA))
-fit <- fitSSM(model, inits = log(0.001) ,method = "BFGS")
-outKFS <- KFS(fit$model, smoothing = c("state", "mean", "disturbance"))
-outKFS$model$Q
 
 d <- q <- 2 #Number of diffuse initial values in the state 
 w <- 1#Number of estimated hyperparameters (i.e. disturbance variances)
 l <- 12 #Autocorrelation at lag l to be provided by r-statistic / ACF function
-k <- 15#First k autocorrelations to be used in Q-statisticlogLik <- logLik( ) dlmLL(dataUKdriversKSI, mod)
+k <- 15#First k autocorrelations to be used in Q-statistic
 n <- 192 #Number of observations
+
+#Fitting model and getting output
+fit <- fitSSM(model, inits = log(0.001) ,method = "BFGS")
+outKFS <- KFS(fit$model, smoothing = c("state", "mean", "disturbance"))
+outKFS$model$Q
 
 #Maximum likelihood 
 (maxLik <- logLik(fit$model)/n)
@@ -443,8 +471,11 @@ n <- 192 #Number of observations
 #Maximum likelihood estimate of the state disturbance variance 
 (Q <- fit$model$Q)
 
-#Maximum likelihood estimate of the initial values of the level and the slope at time point t = 1
-(initVal <- coef(outKFS$model)[1,])
+#Smoothed estimates of states
+smoothEstStat <- outKFS$alphahat
+
+#Initial values of the smoothed estimates of states
+(initSmoothEstStat <- smoothEstStat[1,])
 
 #Diagnostic for one-step-ahead prediction residuals (standardised)
 predResid <- rstandard(outKFS) 
@@ -452,7 +483,10 @@ qStat <- qStatistic(predResid, k, w)
 rStat <- rStatistic(predResid, d, l)
 hStat <- hStatistic(predResid, d)
 nStat <- nStatistic(predResid, d)
-dTable(qStat, rStat, hStat, nStat)
+
+#Table 3.1 Diagnostic tests for deterministic linear trend model and log UK drivers KSI
+title = "Table 3.1 Diagnostic tests for deterministic linear trend model and log UK \ndrivers KSI"
+dTable(qStat, rStat, hStat, nStat, title)
 
 #Auxiliary level  residuals (standardised)
 #levelResid <- rstandard(outKFS, "state") 
@@ -465,7 +499,7 @@ rm(list = setdiff(ls(), lsf.str()))
 #Loading data
 dataUKdriversKSI <- log(read.table("UKdriversKSI.txt")) %>% ts(start = 1969, frequency = 12)
 
-#Fitting model
+#Defining model
 model <- SSModel(dataUKdriversKSI ~ SSMtrend(degree = 2, Q = list(matrix(NA), matrix(NA))),  H = matrix(NA))
 ownupdatefn <- function(pars, model){
   model$H[,,1] <- exp(pars[1])
@@ -473,16 +507,15 @@ ownupdatefn <- function(pars, model){
   model
 }
 
-fit <- fitSSM(model, inits = log(c(0.001, 0.001, 0.001)), updatefn = ownupdatefn, method = "L-BFGS-B")
-
-outKFS <- KFS(fit$model, smoothing = c("state", "mean", "disturbance"))
-outKFS$model$Q
-
 d <- q <- 2 #Number of diffuse initial values in the state 
 w <- 3#Number of estimated hyperparameters (i.e. disturbance variances)
 l <- 12 #Autocorrelation at lag l to be provided by r-statistic / ACF function
-k <- 15#First k autocorrelations to be used in Q-statisticlogLik <- logLik( ) dlmLL(dataUKdriversKSI, mod)
+k <- 15#First k autocorrelations to be used in Q-statistic
 n <- 192 #Number of observations
+
+#Fitting model
+fit <- fitSSM(model, inits = log(c(0.001, 0001, 0001)) ,method = "BFGS")
+outKFS <- KFS(fit$model, smoothing = c("state", "mean", "disturbance"))
 
 #Maximum likelihood 
 (maxLik <- logLik(fit$model)/n)
@@ -496,26 +529,29 @@ n <- 192 #Number of observations
 #Maximum likelihood estimate of the state disturbance variance 
 (Q <- fit$model$Q)
 
-#Maximum likelihood estimate of the initial values of the level and the slope at time point t = 1
-(initVal <- coef(outKFS$model)[1,])
+#Smoothed estimates of states
+smoothEstStat <- outKFS$alphahat
+
+#Initial values of the smoothed estimates of states
+(initSmoothEstStat <- smoothEstStat[1,])
 
 #Figure 3.1. Trend of stochastic linear trend model
-alphahat <- outKFS$alphahat
 plot(dataUKdriversKSI , xlab = "", ylab = "", lty = 1)
-lines(alphahat[, "level"], lty = 3)
+lines(smoothEstStat[, "level"], lty = 3)
 title(main = "Figure 3.1. Trend of stochastic linear trend model", cex.main = 0.8)
 legend("topright",leg = c("log UK drivers KSI", "stochastic level and slope"), 
        cex = 0.5, lty = c(1, 3), horiz = T)
 
 #Figure 3.2. Slope of stochastic linear trend model
-alphahat <- outKFS$alphahat
-plot(alphahat[, "slope"], xlab = "", ylab = "", lty = 1)
+plot(smoothEstStat[, "slope"], xlab = "", ylab = "", lty = 1)
 title(main = "Figure 3.2. Slope of stochastic linear trend model", cex.main = 0.8)
 legend("topleft",leg = "stochastic slope", 
        cex = 0.5, lty = 1, horiz = T)
 
+#Auxiliary irregular residuals (non-standardised)
+irregResid <- residuals(outKFS, "pearson") 
+
 #Figure 3.3. Irregular component of stochastic trend model
-irregResid <- residuals(outKFS, "pearson") #Auxiliary irregular residuals (non-standardised)
 plot(irregResid  , xlab = "", ylab = "", lty = 2)
 abline(h = 0, lty = 1)
 title(main = "Figure 3.3. Irregular component of stochastic trend model", cex.main = 0.8)
@@ -527,7 +563,11 @@ qStat <- qStatistic(predResid, k, w)
 rStat <- rStatistic(predResid, d, l)
 hStat <- hStatistic(predResid, d)
 nStat <- nStatistic(predResid, d)
-dTable(qStat, rStat, hStat, nStat)
+
+#Table 3.2 Diagnostic tests for the local linear trend model applied 
+#to the log of the UK drivers KSI
+title = "Table 3.2 Diagnostic tests for the local linear trend model applied to \nthe log of the UK drivers KSI"
+dTable(qStat, rStat, hStat, nStat, title)
 
 #Auxiliary level  residuals (standardised)
 #levelResid <- rstandard(outKFS, "state") 
@@ -540,7 +580,7 @@ rm(list = setdiff(ls(), lsf.str()))
 #Loading data
 dataUKdriversKSI <- log(read.table("UKdriversKSI.txt")) %>% ts(start = 1969, frequency = 12)
 
-#Fitting model
+#Defining model
 model <- SSModel(dataUKdriversKSI ~ SSMtrend(degree = 2, Q = list(matrix(NA), matrix(0))),  H = matrix(NA))
 ownupdatefn <- function(pars, model){
   model$H[,,1] <- exp(pars[1])
@@ -548,16 +588,15 @@ ownupdatefn <- function(pars, model){
   model
 }
 
-fit <- fitSSM(model, inits = log(c(0.001, 0.001)), updatefn = ownupdatefn, method = "L-BFGS-B")
-
-outKFS <- KFS(fit$model, smoothing = c("state", "mean", "disturbance"))
-outKFS$model$Q
-
 d <- q <- 2 #Number of diffuse initial values in the state 
 w <- 2#Number of estimated hyperparameters (i.e. disturbance variances)
 l <- 12 #Autocorrelation at lag l to be provided by r-statistic / ACF function
-k <- 15#First k autocorrelations to be used in Q-statisticlogLik <- logLik( ) dlmLL(dataUKdriversKSI, mod)
+k <- 15#First k autocorrelations to be used in Q-statistic
 n <- 192 #Number of observations
+
+#Fitting model and getting output
+fit <- fitSSM(model, inits = log(c(0.001, 0.001)), updatefn = ownupdatefn, method = "L-BFGS-B")
+outKFS <- KFS(fit$model, smoothing = c("state", "mean", "disturbance"))
 
 #Maximum likelihood 
 (maxLik <- logLik(fit$model)/n)
@@ -571,24 +610,26 @@ n <- 192 #Number of observations
 #Maximum likelihood estimate of the state disturbance variance 
 (Q <- fit$model$Q)
 
-#Maximum likelihood estimate of the initial values of the level and the slope at time point t = 1
-(initVal <- coef(outKFS$model)[1,])
+#Smoothed estimates of states
+smoothEstStat <- outKFS$alphahat
+
+#Initial values of the smoothed estimates of states
+(initSmoothEstStat <- smoothEstStat[1,])
 
 #Figure 3.4. Trend of stochastic level and deterministic slope model
-alphahat <- outKFS$alphahat
 plot(dataUKdriversKSI, xlab = "", ylab = "", lty = 1)
-lines(alphahat[, "level"] , lty = 3)
+lines(smoothEstStat[, "level"] , lty = 3)
 title(main = "Figure 3.4. Trend of stochastic level and deterministic slope model", cex.main = 0.8)
 legend("topright",leg = c("log UK drivers KSI", "stochastic level and deterministic slope"), 
        cex = 0.5, lty = c(1, 3), horiz = T)
 
 #Diagnostic for one-step-ahead prediction residuals (standardised)
-predResid <- rstandard(outKFS) 
-qStat <- qStatistic(predResid, k, w)
-rStat <- rStatistic(predResid, d, l)
-hStat <- hStatistic(predResid, d)
-nStat <- nStatistic(predResid, d)
-dTable(qStat, rStat, hStat, nStat)
+#predResid <- rstandard(outKFS) 
+#qStat <- qStatistic(predResid, k, w)
+#rStat <- rStatistic(predResid, d, l)
+#hStat <- hStatistic(predResid, d)
+#nStat <- nStatistic(predResid, d)
+#dTable(qStat, rStat, hStat, nStat, title = "")
 
 #Auxiliary level  residuals (standardised)
 #levelResid <- rstandard(outKFS, "state") 
@@ -604,7 +645,7 @@ rm(list = setdiff(ls(), lsf.str()))
 #Loading data
 dataFIfatalities <- log(read.table("NorwayFinland.txt")[,3]) %>% ts(start = 1970, frequency = 1)
 
-#Fitting model
+#Defining model
 model <- SSModel(dataFIfatalities ~ SSMtrend(degree = 2, Q = list(matrix(NA), matrix(NA))),  H = matrix(NA))
 ownupdatefn <- function(pars, model){
   model$H[,,1] <- exp(pars[1])
@@ -612,16 +653,15 @@ ownupdatefn <- function(pars, model){
   model
 }
 
-fit <- fitSSM(model, inits = log(c(0.001, 0.001, 0.001)), updatefn = ownupdatefn, method = "L-BFGS-B")
-
-outKFS <- KFS(fit$model, smoothing = c("state", "mean", "disturbance"))
-outKFS$model$Q
-
 d <- q <- 2 #Number of diffuse initial values in the state 
 w <- 3#Number of estimated hyperparameters (i.e. disturbance variances)
 l <- 4 #Autocorrelation at lag l to be provided by r-statistic / ACF function
-k <- 10#First k autocorrelations to be used in Q-statisticlogLik <- logLik( ) dlmLL(dataUKdriversKSI, mod)
+k <- 10#First k autocorrelations to be used in Q-statistic
 n <- 34 #Number of observations
+
+#Fitting model and getting output
+fit <- fitSSM(model, inits = log(c(0.001, 0.001, 0.001)), updatefn = ownupdatefn, method = "L-BFGS-B")
+outKFS <- KFS(fit$model, smoothing = c("state", "mean", "disturbance"))
 
 #Maximum likelihood 
 (maxLik <- logLik(fit$model)/n)
@@ -635,8 +675,22 @@ n <- 34 #Number of observations
 #Maximum likelihood estimate of the state disturbance variance 
 (Q <- fit$model$Q)
 
-#Maximum likelihood estimate of the initial values of the level and the slope at time point t = 1
-(initVal <- coef(outKFS$model)[1,])
+#Smoothed estimates of states
+smoothEstStat <- outKFS$alphahat
+
+#Initial values of the smoothed estimates of states
+(initSmoothEstStat <- smoothEstStat[1,])
+
+#Diagnostic for one-step-ahead prediction residuals (standardised)
+#predResid <- rstandard(outKFS) 
+#qStat <- qStatistic(predResid, k, w)
+#rStat <- rStatistic(predResid, d, l)
+#hStat <- hStatistic(predResid, d)
+#nStat <- nStatistic(predResid, d)
+#dTable(qStat, rStat, hStat, nStat, title = "")
+
+#Auxiliary level  residuals (standardised)
+#levelResid <- rstandard(outKFS, "state") 
 
 
 #B) Deterministic level and stochastic slope####
@@ -647,8 +701,7 @@ rm(list = setdiff(ls(), lsf.str()))
 #Loading data
 dataFIfatalities <- log(read.table("NorwayFinland.txt")[,3]) %>% ts(start = 1970, frequency = 1)
 
-#Fitting model
-
+#Defining model
 model <- SSModel(dataFIfatalities ~ SSMtrend(degree = 2, Q = list(matrix(0), matrix(NA))),  H = matrix(NA))
 ownupdatefn <- function(pars, model){
   model$H[,,1] <- exp(pars[1])
@@ -656,16 +709,15 @@ ownupdatefn <- function(pars, model){
   model
 }
 
-fit <- fitSSM(model, inits = log(c(0.001, 0.001)), updatefn = ownupdatefn, method = "L-BFGS-B")
-
-outKFS <- KFS(fit$model, smoothing = c("state", "mean", "disturbance"))
-outKFS$model$Q
-
 d <- q <- 2 #Number of diffuse initial values in the state 
 w <- 2#Number of estimated hyperparameters (i.e. disturbance variances)
 l <- 4 #Autocorrelation at lag l to be provided by r-statistic / ACF function
-k <- 10#First k autocorrelations to be used in Q-statisticlogLik <- logLik( ) dlmLL(dataUKdriversKSI, mod)
+k <- 10#First k autocorrelations to be used in Q-statistic
 n <- 34 #Number of observations
+
+#Fitting model and getting output
+fit <- fitSSM(model, inits = log(c(0.001, 0.001)), updatefn = ownupdatefn, method = "L-BFGS-B")
+outKFS <- KFS(fit$model, smoothing = c("state", "mean", "disturbance"))
 
 #Maximum likelihood 
 (maxLik <- logLik(fit$model)/n)
@@ -679,28 +731,32 @@ n <- 34 #Number of observations
 #Maximum likelihood estimate of the state disturbance variance 
 (Q <- fit$model$Q)
 
-#Maximum likelihood estimate of the initial values of the level and the slope at time point t = 1
-(initVal <- coef(outKFS$model)[1,])
+#Smoothed estimates of states
+smoothEstStat <- outKFS$alphahat
 
-par(mfrow = c(2, 1), mar = c(1.5, 4, 4, 4))
+#Initial values of the smoothed estimates of states
+(initSmoothEstStat <- smoothEstStat[1,])
+
 #Figure 3.5. Trend of deterministic level and stochastic slope model
   # for Finnish fatalities (top) and stochastic slope component (bottom) linear trend model
-alphahat <- outKFS$alphahat
+par(mfrow = c(2, 1), mar = c(1.5, 4, 4, 4))
 plot(dataFIfatalities, xlab = "", ylab = "", lty = 1)
-lines(alphahat[, "level"], lty = 3)
+lines(smoothEstStat[, "level"], lty = 3)
 title(main = "Figure 3.5. Trend of deterministic level and stochastic slope model 
       for Finnish fatalities (top) and stochastic slope component (bottom) linear trend model", 
       cex.main = 0.8)
 legend("topright",leg = c("log fatalities Finland", "deterministic level, stochastic slope"), 
        cex = 0.5, lty = c(1, 3), horiz = T)
 par(mar = c(4, 4, 1.5, 4))
-plot(alphahat[, "slope"], xlab = "", ylab = "", lty = 3)
+plot(smoothEstStat[, "slope"], xlab = "", ylab = "", lty = 3)
 abline(h = 0, lty = 1)
 legend("topright",leg = "stochastic slope", cex = 0.5, lty = 1, horiz = T)
 
-par(mfrow = c(1, 1), mar = c(4, 4, 4, 4))
+#Auxiliary irregular residuals (non-standardised)
+irregResid <- residuals(outKFS, "pearson") 
+
 #Figure 3.6. Irregular component for Finish fatalities
-irregResid <- residuals(outKFS, "pearson") #Auxiliary irregular residuals (non-standardised)
+par(mfrow = c(1, 1), mar = c(4, 4, 4, 4))
 plot(irregResid  , xlab = "", ylab = "", lty = 2)
 abline(h = 0, lty = 1)
 title(main = "Figure 3.6. Irregular component for Finish fatalities", cex.main = 0.8)
@@ -712,7 +768,11 @@ qStat <- qStatistic(predResid, k, w)
 rStat <- rStatistic(predResid, d, l)
 hStat <- hStatistic(predResid, d)
 nStat <- nStatistic(predResid, d)
-dTable(qStat, rStat, hStat, nStat)
+
+#Table 3.3. Diagnostic tests for deterministic level and stochastic slope
+#model, and log Finnish fatalities
+title = "Table 3.3. Diagnostic tests for deterministic level and stochastic slope \nmodel, and log Finnish fatalities"
+dTable(qStat, rStat, hStat, nStat, title)
 
 #Auxiliary level  residuals (standardised)
 #levelResid <- rstandard(outKFS, "state") 
@@ -726,8 +786,14 @@ dTable(qStat, rStat, hStat, nStat)
 rm(list = setdiff(ls(), lsf.str())) 
 
 #Loading data
-dataUKdriversKSI <- log(read.table("UKdriversKSI.txt"))
-dataUKdriversKSI <- ts(dataUKdriversKSI, start = 1969, frequency=12)
+dataUKdriversKSI <- log(read.table("UKdriversKSI.txt")) %>% ts(start = 1969, frequency=12)
+
+#Figure 4.1. Log of the number of UK drivers KSI with time lines for years
+plot(dataUKdriversKSI, ylab = "",xlab = "")
+abline(v=seq(1969, 1985, 1), lty = 3)
+title(main = "Figure 4.1. Log of the number of UK drivers KSI with time lines for years", 
+      cex.main = 0.8)
+legend("topright", leg = "log UK drivers KSI",cex = 0.5, lty = 1, horiz = T)
 
 #Fitting model
 model <- SSModel(dataUKdriversKSI ~ SSMtrend(1, Q=0) + SSMseasonal(12, sea.type='dummy', Q = 0),  H=NA)
@@ -739,7 +805,7 @@ outKFS$model$Q
 d <- q <- 12 #Number of diffuse initial values in the state 
 w <- 1#Number of estimated hyperparameters (i.e. disturbance variances)
 l <- 12 #Autocorrelation at lag l to be provided by r-statistic / ACF function
-k <- 15#First k autocorrelations to be used in Q-statisticlogLik <- logLik( ) dlmLL(dataUKdriversKSI, mod)
+k <- 15#First k autocorrelations to be used in Q-statistic
 n <- 192 #Number of observations
 
 #Maximum likelihood 
@@ -757,53 +823,83 @@ n <- 192 #Number of observations
 #Maximum likelihood estimate of the initial values of the level and seasonal components at time point t=1
 (initVal <- coef(outKFS$model)[1,])
 
-#Extracting residuals
-predResid <- rstandard(outKFS) #One-step-ahead prediction residuals (standardised)
-irregResid <- rstandard(outKFS, "pearson") #Auxiliary irregular  residuals (standardised)
-levelResid <- rstandard(outKFS, "state") #Auxiliary level  residuals (standardised)
+#Smoothed estimates of states
+smoothEstStat <- outKFS$alphahat
 
+#Figure 4.2. Combined deterministic level and seasonal
+plot(dataUKdriversKSI, xlab = "", ylab = "", lty = 1)
+lines(smoothEstStat[, "level"], lty = 3)
+title(main = "Figure 4.2. Combined deterministic level and seasonal", cex.main = 0.8)
+legend("topright",leg = c("log UK drivers KSI", "deterministic level"), 
+       cex = 0.5, lty = c(1, 3), horiz = T)
+
+#Figure 4.3. Deterministic seasonal
+plot(smoothEstStat[, "sea_dummy1"], xlab = "", ylab = "", lty = 1)
+abline(h = 0, lty = 3)
+title(main = "Figure 4.3. Deterministic seasonal", cex.main = 0.8)
+legend("topleft",leg = "deterministic seasonal", 
+       cex = 0.5, lty = 1, horiz = T)
+
+#Figure 4.5. Irregular component for deterministic level and seasonal model
+irregResid <- residuals(outKFS, "pearson") #Auxiliary irregular residuals (non-standardised)
+plot(irregResid  , xlab = "", ylab = "", lty = 2)
+abline(h = 0, lty = 1)
+title(main = "Figure 4.5. Irregular component for deterministic level and seasonal model", cex.main = 0.8)
+legend("topright",leg = "irregular",cex = 0.5, lty = 2, horiz = T)
 
 #Diagnostic for one-step-ahead prediction residuals (standardised)
+predResid <- rstandard(outKFS) 
 qStat <- qStatistic(predResid, k, w)
 rStat <- rStatistic(predResid, d, l)
 hStat <- hStatistic(predResid, d)
 nStat <- nStatistic(predResid, d)
 dTable(qStat, rStat, hStat, nStat)
 
+#Auxiliary level  residuals (standardised)
+#levelResid <- rstandard(outKFS, "state") 
 
 #4.2 Stochastic level and seasonal####
 
-#Ver 1####
 #Removing all objects except functions
 rm(list = setdiff(ls(), lsf.str())) 
 
 #Loading data
-dataUKdriversKSI <- log(read.table("UKdriversKSI.txt"))
-dataUKdriversKSI <- ts(dataUKdriversKSI, start = 1969, frequency=12)
+dataUKdriversKSI <- log(read.table("UKdriversKSI.txt")) %>% ts(start = 1969, frequency=12)
 
-#Fitting model
+#Defining model
 model <- SSModel(dataUKdriversKSI ~ SSMtrend(1, Q=NA) + SSMseasonal(12, sea.type='dummy', Q = NA),  H=NA)
-
 ownupdatefn <- function(pars,model,...){
 model$H[,,1] <- exp(pars[1])
 diag(model$Q[,,1]) <- exp(c(pars[2], pars[3]))
 model
 }
 
-fit <- fitSSM(inits = log(c(0.001, 0.001, 0.001)), model = model, updatefn = ownupdatefn, method = "BFGS")
-
-#model <- SSModel(dataUKdriversKSI ~ SSMtrend(degree=2, Q=list(matrix(NA), matrix(NA))), H = matrix(NA))
-#fit <- fitSSM(model, inits = c(0.001,0.001, 0.001) ,method = "BFGS")
-
-outKFS <- KFS(fit$model, smoothing = c("state", "mean", "disturbance"))
-outKFS$model$Q
-
 d <- q <- 12 #Number of diffuse initial values in the state 
-w <- 3#Number of estimated hyperparameters (i.e. disturbance variances)
+w <- 3 #Number of estimated hyperparameters (i.e. disturbance variances)
 l <- 12 #Autocorrelation at lag l to be provided by r-statistic / ACF function
-k <- 15#First k autocorrelations to be used in Q-statisticlogLik <- logLik( ) dlmLL(dataUKdriversKSI, mod)
+k <- 15#First k autocorrelations to be used in Q-statistic
 n <- 192 #Number of observations
 
+#Finding best initial values for optim in order to avoid the results for local maxima in log-likelihood function
+method = "BFGS" # BFGS or L-BFGS-B
+maxLoop = 300
+initValOpt <- matrix(NA, maxLoop, 2) %>% 
+  data.frame() %>%
+  `colnames<-`(c("Initial.value", "Log.likelihood"))
+set.seed(123)
+for (j in 1:maxLoop){
+  x <- runif(1, min = 10e-6, max = 2) %>% round(3)
+  fit <- fitSSM(inits = log(rep(x, w)), model = model, updatefn = ownupdatefn, method = method) #L-BFGS-B BFGS
+  (maxLik <- logLik(fit$model, method = method)/n)
+  initValOpt[j, ] <- c(x, maxLik)
+  }     
+(arrange(initValOpt, desc(Log.likelihood)))
+
+#best initial values
+x = initValOpt[]
+fit <- fitSSM(inits = log(rep(x, w)), model = model, updatefn = ownupdatefn, method = "BFGS")
+outKFS <- KFS(fit$model, smoothing = c("state", "mean", "disturbance"))
+             
 #Maximum likelihood 
 (maxLik <- logLik(fit$model, method = "BFGS")/n)
 
