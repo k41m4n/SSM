@@ -795,18 +795,19 @@ title(main = "Figure 4.1. Log of the number of UK drivers KSI with time lines fo
       cex.main = 0.8)
 legend("topright", leg = "log UK drivers KSI",cex = 0.5, lty = 1, horiz = T)
 
-#Fitting model
+#Defining model
 model <- SSModel(dataUKdriversKSI ~ SSMtrend(1, Q=0) + SSMseasonal(12, sea.type='dummy', Q = 0),  H=NA)
-
-fit <- fitSSM(inits = c(0.001), model = model, method = "BFGS")
-outKFS <- KFS(fit$model, smoothing = c("state", "mean", "disturbance"))
-outKFS$model$Q
 
 d <- q <- 12 #Number of diffuse initial values in the state 
 w <- 1#Number of estimated hyperparameters (i.e. disturbance variances)
 l <- 12 #Autocorrelation at lag l to be provided by r-statistic / ACF function
 k <- 15#First k autocorrelations to be used in Q-statistic
 n <- 192 #Number of observations
+
+#Fitting model and getting output
+fit <- fitSSM(inits = c(0.001), model = model, method = "BFGS")
+outKFS <- KFS(fit$model, smoothing = c("state", "mean", "disturbance"))
+outKFS$model$Q
 
 #Maximum likelihood 
 (maxLik <- logLik(fit$model, method = "BFGS")/n)
@@ -820,28 +821,37 @@ n <- 192 #Number of observations
 #Maximum likelihood estimate of the state disturbance variance 
 (Q <- fit$model$Q)
 
-#Maximum likelihood estimate of the initial values of the level and seasonal components at time point t=1
-(initVal <- coef(outKFS$model)[1,])
+#Smoothed estimates of states (level and seasonal components)
+smoothEstStat <- coef(outKFS$model)
 
-#Smoothed estimates of states
-smoothEstStat <- outKFS$alphahat
+#Initial values of the smoothed estimates of states
+(initSmoothEstStat <- smoothEstStat[1,])
 
 #Figure 4.2. Combined deterministic level and seasonal
 plot(dataUKdriversKSI, xlab = "", ylab = "", lty = 1)
-lines(smoothEstStat[, "level"], lty = 3)
+lines(smoothEstStat[, "level"] + smoothEstStat[, "sea_dummy1"], lty = 3)
 title(main = "Figure 4.2. Combined deterministic level and seasonal", cex.main = 0.8)
+legend("topright",leg = c("log UK drivers KSI", "deterministic level + seasonal"), 
+       cex = 0.5, lty = c(1, 3), horiz = T)
+
+#Figure 4.3. Deterministic level
+plot(dataUKdriversKSI, xlab = "", ylab = "", lty = 1)
+lines(smoothEstStat[, "level"], lty = 3)
+title(main = "Figure 4.3. Deterministic level", cex.main = 0.8)
 legend("topright",leg = c("log UK drivers KSI", "deterministic level"), 
        cex = 0.5, lty = c(1, 3), horiz = T)
 
-#Figure 4.3. Deterministic seasonal
+#Figure 4.4. Deterministic seasonal
 plot(smoothEstStat[, "sea_dummy1"], xlab = "", ylab = "", lty = 1)
 abline(h = 0, lty = 3)
-title(main = "Figure 4.3. Deterministic seasonal", cex.main = 0.8)
+title(main = "Figure 4.4. Deterministic seasonal", cex.main = 0.8)
 legend("topleft",leg = "deterministic seasonal", 
        cex = 0.5, lty = 1, horiz = T)
 
+#Auxiliary irregular residuals (non-standardised)
+irregResid <- residuals(outKFS, "pearson") 
+
 #Figure 4.5. Irregular component for deterministic level and seasonal model
-irregResid <- residuals(outKFS, "pearson") #Auxiliary irregular residuals (non-standardised)
 plot(irregResid  , xlab = "", ylab = "", lty = 2)
 abline(h = 0, lty = 1)
 title(main = "Figure 4.5. Irregular component for deterministic level and seasonal model", cex.main = 0.8)
@@ -853,7 +863,11 @@ qStat <- qStatistic(predResid, k, w)
 rStat <- rStatistic(predResid, d, l)
 hStat <- hStatistic(predResid, d)
 nStat <- nStatistic(predResid, d)
-dTable(qStat, rStat, hStat, nStat)
+
+#Table 4.1. Diagnostic tests for deterministic level and seasonal 
+#model and log UK drivers KSI
+title = "Table 4.1. Diagnostic tests for deterministic level and seasonal model \nand log UK drivers KSI"
+dTable(qStat, rStat, hStat, nStat, title)
 
 #Auxiliary level  residuals (standardised)
 #levelResid <- rstandard(outKFS, "state") 
@@ -864,11 +878,11 @@ dTable(qStat, rStat, hStat, nStat)
 rm(list = setdiff(ls(), lsf.str())) 
 
 #Loading data
-dataUKdriversKSI <- log(read.table("UKdriversKSI.txt")) %>% ts(start = 1969, frequency=12)
+dataUKdriversKSI <- log(read.table("UKdriversKSI.txt")) %>% ts(start = 1969, frequency = 12)
 
 #Defining model
-model <- SSModel(dataUKdriversKSI ~ SSMtrend(1, Q=NA) + SSMseasonal(12, sea.type='dummy', Q = NA),  H=NA)
-ownupdatefn <- function(pars,model,...){
+model <- SSModel(dataUKdriversKSI ~ SSMtrend(1, Q = NA) + SSMseasonal(12, sea.type = 'dummy', Q = NA),  H = NA)
+ownupdatefn <- function(pars,model){
 model$H[,,1] <- exp(pars[1])
 diag(model$Q[,,1]) <- exp(c(pars[2], pars[3]))
 model
@@ -880,218 +894,126 @@ l <- 12 #Autocorrelation at lag l to be provided by r-statistic / ACF function
 k <- 15#First k autocorrelations to be used in Q-statistic
 n <- 192 #Number of observations
 
-#Finding best initial values for optim in order to avoid the results for local maxima in log-likelihood function
-method = "BFGS" # BFGS or L-BFGS-B
-maxLoop = 300
-initValOpt <- matrix(NA, maxLoop, 2) %>% 
+#Finding best initial values for optim and fitting model
+#avoid the results for local maxima in log-likelihood function
+method = "L-BFGS-B" # BFGS or L-BFGS-B
+maxLoop = 200
+initValOpt  <- matrix(NA, maxLoop, 2) %>% 
   data.frame() %>%
   `colnames<-`(c("Initial.value", "Log.likelihood"))
-set.seed(123)
+#set.seed(123)
 for (j in 1:maxLoop){
-  x <- runif(1, min = 10e-6, max = 2) %>% round(3)
-  fit <- fitSSM(inits = log(rep(x, w)), model = model, updatefn = ownupdatefn, method = method) #L-BFGS-B BFGS
+  x <- runif(1, min = 0.00001, max = 2) %>% round(3)
+  fit <- fitSSM(inits = log(rep(x, w)), model = model, updatefn = ownupdatefn, method = method)
   (maxLik <- logLik(fit$model, method = method)/n)
   initValOpt[j, ] <- c(x, maxLik)
   }     
-(arrange(initValOpt, desc(Log.likelihood)))
+(initValOpt <- arrange(initValOpt, desc(Log.likelihood)))
 
-#best initial values
-x = initValOpt[]
-fit <- fitSSM(inits = log(rep(x, w)), model = model, updatefn = ownupdatefn, method = "BFGS")
+x = initValOpt[1,1] #Best initial values for optim
+fit <- fitSSM(inits = log(rep(x, w)), model = model, updatefn = ownupdatefn, method = method)
 outKFS <- KFS(fit$model, smoothing = c("state", "mean", "disturbance"))
-             
-#Maximum likelihood 
-(maxLik <- logLik(fit$model, method = "BFGS")/n)
 
-#Akaike information criterion (AIC)
-(AIC <- (-2*logLik(fit$model)+2*(w+q))/n)
+#ver 2 
+      
 
-#Maximum likelihood estimate of the irregular variance
-(H <- fit$model$H) 
-
-#Maximum likelihood estimate of the state disturbance variance 
-(Q <- fit$model$Q)
-
-#Maximum likelihood estimate of the initial values of the level and the seasonal components at time point t=1
-(initVal <- coef(outKFS$model)[1,])
-
-#Extracting residuals
-predResid <- rstandard(outKFS) #One-step-ahead prediction residuals (standardised)
-irregResid <- rstandard(outKFS, "pearson") #Auxiliary irregular  residuals (standardised)
-levelResid <- rstandard(outKFS, "state") #Auxiliary level  residuals (standardised)
-
-
-#Diagnostic for one-step-ahead prediction residuals (standardised)
-qStat <- qStatistic(predResid, k, w)
-rStat <- rStatistic(predResid, d, l)
-hStat <- hStatistic(predResid, d)
-nStat <- nStatistic(predResid, d)
-dTable(qStat, rStat, hStat, nStat)
-
-
-#Ver 2 with cumulator variable####
-
-#Removing all objects except functions
-rm(list = setdiff(ls(), lsf.str())) 
-
-#Loading data
-dataUKdriversKSI <- log(read.table("UKdriversKSI.txt"))
-dataUKdriversKSI[193,] <- NA
-dataUKdriversKSI[2:nrow(dataUKdriversKSI),] <- dataUKdriversKSI[1:nrow(dataUKdriversKSI)-1,] 
-dataUKdriversKSI[1,] <- NA 
-dataUKdriversKSI <- ts(dataUKdriversKSI, start = 1969, frequency=12)
-
-#Fitting model
-
-#model <- SSModel(dataUKdriversKSI ~ SSMtrend(degree=1, Q=list(matrix(NA)), a1 = 0, P1inf = 0, P1 = 100) + SSMseasonal(period = 12, sea.type='dummy', Q=matrix(NA), a1 = rep(0, 11), P1inf = diag(rep(0, 11)), P1 = diag(rep(100, 11))) + SSMcustom(Z = 1, T = 1, R = 1, a1 = 0, P1inf = 0, P1 = 0, Q = matrix(NA), state_names = "cumulator"), H = matrix(0))
-
-#Important: in SSMcustom P1inf = 0 and P1 = 0
-model <- SSModel(dataUKdriversKSI ~ SSMtrend(degree=1, Q=list(matrix(NA)), a1 = 0, P1inf = 1, P1 = 0) + SSMseasonal(period = 12, sea.type='dummy', Q=matrix(NA), a1 = rep(0, 11), P1inf = diag(rep(1, 11)), P1 = diag(rep(0, 11))) + SSMcustom(Z = 1, T = 1, R = 1, a1 = 0, P1inf = 0, P1 = 0, Q = matrix(NA), state_names = "cumulator"), H = matrix(0))
-#Important: in SSMcustom P1inf = 0 and P1 = 0 to 50
-ownupdatefn <- function(pars,model){
-  
-  diag(model$Q[, , 1]) <- exp(pars[1:3])#Third element of the diagonal matrix Q is the irregular disturbance for the cumulator variable
-  
-  model$T["cumulator", , 1] <-   model$Z[1, , 1] %*% model$T[, , 1]
-  model$T <- replicate(length(dataUKdriversKSI), model$T[,,1])#Make sure that this name of data is the same as in the definition of the model above
-  model$T["cumulator", "cumulator", ]  <- 0 
-  #model$T["cumulator", "cumulator", 1:dim(model$T)[3] %% 3 == 1]  <- 0 #Changing to 0 the value in the row and column of the cumulator variable of matriz T for time t4, t8, t12 ...
-  #model$T["cumulator", "cumulator", 1]  <- 1
-  
-  model$R["cumulator", , 1] <- model$Z[1, , 1] %*% model$R[, , 1]  
-  
-  model$Z[1, colnames(model$Z)!="cumulator", 1] <- 0 # All the elements of matriz Z should be 0  except the last element that is 1 for the cumulator variable
-  
-  attr(model, "tv") <- as.integer(c(0, 0, 1, 0, 0)) #attr(model, "tv") <- as.integer(rep(1,5))
-  #Integer vector stating whether Z,H,T,R or Q is time-varying (indicated by 1 intvand 0 otherwise).  
-  #If you manually change the dimensions of the matrices youmust change this attribute also.
-  #Make sure that 1 is integer!
-  model
-}
-
-fit <- fitSSM(inits = log(c(0.001, 0.001, 0.001)), model = model, updatefn = ownupdatefn, method = "BFGS") #"Nelder-Mead", "BFGS", "CG", "L-BFGS-B", "SANN","Brent"
-
-#model <- SSModel(dataUKdriversKSI ~ SSMtrend(degree=2, Q=list(matrix(NA), matrix(NA))), H = matrix(NA))
-#fit <- fitSSM(model, inits = c(0.001,0.001, 0.001) ,method = "BFGS")
-
-outKFS <- KFS(fit$model, smoothing = c("state", "mean", "disturbance"))
-outKFS$model$Q
-
-d <- q <- 12 #Number of diffuse initial values in the state 
-w <- 3#Number of estimated hyperparameters (i.e. disturbance variances)
-l <- 12 #Autocorrelation at lag l to be provided by r-statistic / ACF function
-k <- 15#First k autocorrelations to be used in Q-statisticlogLik <- logLik( ) dlmLL(dataUKdriversKSI, mod)
-n <- 192 #Number of observations
-
-#Maximum likelihood 
-(maxLik <- logLik(fit$model, method = "BFGS")/n)
-
-#Akaike information criterion (AIC)
-(AIC <- (-2*logLik(fit$model)+2*(w+q))/n)
-
-#Maximum likelihood estimate of the irregular variance
-(H <- fit$model$H) 
-
-#Maximum likelihood estimate of the state disturbance variance 
-(Q <- fit$model$Q)
-
-#Maximum likelihood estimate of the initial values of the level and the seasonal components at time point t=1
-(initVal <- coef(outKFS$model)[1,])
-
-#Extracting residuals
-predResid <- rstandard(outKFS) #One-step-ahead prediction residuals (standardised)
-irregResid <- rstandard(outKFS, "pearson") #Auxiliary irregular  residuals (standardised)
-levelResid <- rstandard(outKFS, "state") #Auxiliary level  residuals (standardised)
-
-
-#Diagnostic for one-step-ahead prediction residuals (standardised)
-qStat <- qStatistic(predResid, k, w)
-rStat <- rStatistic(predResid, d, l)
-hStat <- hStatistic(predResid, d)
-nStat <- nStatistic(predResid, d)
-dTable(qStat, rStat, hStat, nStat)
-
-#Ver 3 Comparing residuals####
-rm(list = setdiff(ls(), lsf.str())) 
-#Model with cumulator variable
-#Loading data
-dataUKdriversKSI <- log(read.table("UKdriversKSI.txt"))
-
-#We have to add one time point with NA at the begining of the time series
-dataUKdriversKSI[193,] <- NA 
-dataUKdriversKSI[2:nrow(dataUKdriversKSI),] <- dataUKdriversKSI[1:nrow(dataUKdriversKSI)-1,] 
-dataUKdriversKSI[1,] <- NA 
-#If we want to align residuals with time points we start one month earlier 12/1968 see plot
-dataUKdriversKSI <- ts(dataUKdriversKSI, start = c(1968, 12), frequency=12)
-#If we want to aling y hats with time points we start 1969 as the time series on 1/1969
-
-#Fitting model
-
-#model <- SSModel(dataUKdriversKSI ~ SSMtrend(degree=1, Q=list(matrix(NA)), a1 = 0, P1inf = 0, P1 = 100) + SSMseasonal(period = 12, sea.type='dummy', Q=matrix(NA), a1 = rep(0, 11), P1inf = diag(rep(0, 11)), P1 = diag(rep(100, 11))) + SSMcustom(Z = 1, T = 1, R = 1, a1 = 0, P1inf = 0, P1 = 0, Q = matrix(NA), state_names = "cumulator"), H = matrix(0))
-
-#Important: in SSMcustom P1inf = 0 and P1 = 0
-model <- SSModel(dataUKdriversKSI ~ SSMtrend(degree=1, Q=list(matrix(NA)), a1 = 0, P1inf = 1, P1 = 0) + SSMseasonal(period = 12, sea.type='dummy', Q=matrix(NA), a1 = rep(0, 11), P1inf = diag(rep(1, 11)), P1 = diag(rep(0, 11))) + SSMcustom(Z = 1, T = 1, R = 1, a1 = 0, P1inf = 0, P1 = 0, Q = matrix(NA), state_names = "cumulator"), H = matrix(0))
-#Important: in SSMcustom P1inf = 0 and P1 = 0
-ownupdatefn <- function(pars,model){
-  
-  diag(model$Q[, , 1]) <- exp(pars[1:3])#Third element of the diagonal matrix Q is the irregular disturbance for the cumulator variable
-  
-  model$T["cumulator", , 1] <-   model$Z[1, , 1] %*% model$T[, , 1]
-  model$T <- replicate(length(dataUKdriversKSI), model$T[,,1])#Make sure that this name of data is the same as in the definition of the model above
-  model$T["cumulator", "cumulator", ]  <- 0 
-  #model$T["cumulator", "cumulator", 1:dim(model$T)[3] %% 3 == 1]  <- 0 #Changing to 0 the value in the row and column of the cumulator variable of matriz T for time t4, t8, t12 ...
-  #model$T["cumulator", "cumulator", 1]  <- 1
-  
-  model$R["cumulator", , 1] <- model$Z[1, , 1] %*% model$R[, , 1]
-  
-  model$Z[1, colnames(model$Z)!="cumulator", 1] <- 0 # All the elements of matriz Z should be 0  except the last element that is 1 for the cumulator variable
-  
-  attr(model, "tv") <- as.integer(c(0, 0, 1, 0, 0)) #attr(model, "tv") <- as.integer(rep(1,5))
-  #Integer vector stating whether Z,H,T,R or Q is time-varying (indicated by 1 intvand 0 otherwise).  
-  #If you manually change the dimensions of the matrices youmust change this attribute also.
-  #Make sure that 1 is integer!
-  model
-}
-
-fit <- fitSSM(inits = log(c(0.001, 0.001, 0.001)), model = model, updatefn = ownupdatefn, method = "BFGS") #"Nelder-Mead", "BFGS", "CG", "L-BFGS-B", "SANN","Brent"
-
-#model <- SSModel(dataUKdriversKSI ~ SSMtrend(degree=2, Q=list(matrix(NA), matrix(NA))), H = matrix(NA))
-#fit <- fitSSM(model, inits = c(0.001,0.001, 0.001) ,method = "BFGS")
-
-outKFS <- KFS(fit$model, smoothing = c("state", "mean", "disturbance"))
-outKFS$model$Q
-predResidC <- rstandard(outKFS)
-
-#Model without cumulator variable
-
-#Loading data
-dataUKdriversKSI <- log(read.table("UKdriversKSI.txt"))
-dataUKdriversKSI <- ts(dataUKdriversKSI, start = 1969, frequency=12)
-
-#Fitting model
-model <- SSModel(dataUKdriversKSI ~ SSMtrend(1, Q=NA) + SSMseasonal(12, sea.type='dummy', Q = NA),  H=NA)
-
-ownupdatefn <- function(pars,model,...){
+modelT <- SSModel(dataUKdriversKSI ~ SSMtrend(1, Q = NA) + SSMseasonal(12, sea.type = 'dummy', Q = NA),  H = NA)
+ownupdatefnT <- function(pars,model){
   model$H[,,1] <- exp(pars[1])
   diag(model$Q[,,1]) <- exp(c(pars[2], pars[3]))
   model
 }
 
-fit <- fitSSM(inits = log(c(0.001, 0.001, 0.001)), model = model, updatefn = ownupdatefn, method = "BFGS")
+qT <- q
+initValOptFun <- function(q = q , model = model, updatefn = ownupdatefn, method = "L-BFGS-B", maxLoop = 200){
+  
+  
+  initValOpt  <- matrix(NA, maxLoop, 2) %>% 
+    data.frame() %>%
+    `colnames<-`(c("Initial.value", "Log.likelihood"))
+  #set.seed(123)
+  for (j in 1:maxLoop){
+    x <- runif(1, min = 0.00001, max = 2) %>% round(3)
+    fit <- fitSSM(inits = log(rep(x, w)), model = model, updatefn = ownupdatefn, method = method)
+    (maxLik <- logLik(fit$model, method = method)/n)
+    initValOpt[j, ] <- c(x, maxLik)
+  }     
+  print(initValOpt <- arrange(initValOpt, desc(Log.likelihood)))
+  
+  x = initValOpt[1,1] #Best initial values for optim
+  fit <- fitSSM(inits = log(rep(x, w)), model = model, updatefn = ownupdatefn, method = method)
+  outKFS <- KFS(fit$model, smoothing = c("state", "mean", "disturbance"))
+  outKFS
+}
 
-#model <- SSModel(dataUKdriversKSI ~ SSMtrend(degree=2, Q=list(matrix(NA), matrix(NA))), H = matrix(NA))
-#fit <- fitSSM(model, inits = c(0.001,0.001, 0.001) ,method = "BFGS")
+initValOptFun()
+       
+#Maximum likelihood 
+(maxLik <- logLik(fit$model, method = method)/n)
 
-outKFS <- KFS(fit$model, smoothing = c("state", "mean", "disturbance"))
-outKFS$model$Q
+#Akaike information criterion (AIC)
+(AIC <- (-2*logLik(fit$model)+2*(w+q))/n)
 
-predResidNC <- rstandard(outKFS)
+#Maximum likelihood estimate of the irregular variance
+(H <- fit$model$H) 
+
+#Maximum likelihood estimate of the state disturbance variance 
+(Q <- fit$model$Q)
+
+#Smoothed estimates of states (level and seasonal components)
+smoothEstStat <- coef(outKFS$model)
+
+#Initial values of the smoothed estimates of states
+(initSmoothEstStat <- smoothEstStat[1,])
+
+#Figure 4.6. Stochastic level
+plot(dataUKdriversKSI, xlab = "", ylab = "", lty = 1)
+lines(smoothEstStat[, "level"], lty = 3)
+title(main = "Figure 4.6. Stochastic level", cex.main = 0.8)
+legend("topright",leg = c("log UK drivers KSI", "stochastic level"), 
+       cex = 0.5, lty = c(1, 3), horiz = T)
+
+#Figure 4.7. Stochastic seasonal
+plot(smoothEstStat[, "sea_dummy1"], xlab = "", ylab = "", lty = 1)
+abline(h = 0, lty = 3)
+title(main = "Figure 4.4. Stochastic seasonal", cex.main = 0.8)
+legend("topleft",leg = "stochastic seasonal", 
+       cex = 0.5, lty = 1, horiz = T)
+
+#Figure 4.8. Stochastic seasonal for the year 1969
+plot(window(smoothEstStat[, "sea_dummy1"], start = c( 1969, 1), end = c( 1969, 12)), xlab = "", ylab = "", lty = 1, xaxt = "n")
+axis(1, seq(1969, 1970-1/12, length.out = 12), c("1969-Jan", "", "", "1969-Apr", "", "", "1969-July", "", "", "1969-Oct", "", ""))
+abline(h = 0, lty = 3)
+title(main = "Figure 4.8. Stochastic seasonal for the year 1969", cex.main = 0.8)
+legend("topleft",leg = "stochastic seasonal", 
+       cex = 0.5, lty = 1, horiz = T)
+
+#Auxiliary irregular residuals (non-standardised)
+irregResid <- residuals(outKFS, "pearson") 
+
+#Figure 4.9. Irregular component for stochastic level and seasonal model
+plot(irregResid  , xlab = "", ylab = "", lty = 2)
+abline(h = 0, lty = 1)
+title(main = "Figure 4.9. Irregular component for stochastic level and seasonal model",
+      cex.main = 0.8)
+legend("topright",leg = "irregular",cex = 0.5, lty = 2, horiz = T)
 
 
-plot(predResidNC, type="l", lty="solid", col="red") # Residuals for the results without cumulator variable
-lines(predResidC,  type="l", lty="dashed", col="blue") # Residuals for the case with cumulator variable
-legend("topright", legend=c("Residuals without cumulator variable", "Residuals with cumulator variable"), lty=c("solid", "dashed"), col=c("red", "blue"))
-# If we do not add one time index at the begining of  the time series with cumulator variable we loose the first residual
+#Diagnostic for one-step-ahead prediction residuals (standardised)
+predResid <- rstandard(outKFS) 
+qStat <- qStatistic(predResid, k, w)
+rStat <- rStatistic(predResid, d, l)
+hStat <- hStatistic(predResid, d)
+nStat <- nStatistic(predResid, d)
+
+#Table 4.2. Diagnostic tests for stochastic level and seasonal 
+#model and log UK drivers KSI
+title = "Table 4.2. Diagnostic tests for stochastic level and seasonal model \nand log UK drivers KSI"
+dTable(qStat, rStat, hStat, nStat, title)
+
+#Auxiliary level  residuals (standardised)
+#levelResid <- rstandard(outKFS, "state") 
+
 
 #4.3 Stochastic level and deterministic seasonal####
 
@@ -1099,8 +1021,7 @@ legend("topright", legend=c("Residuals without cumulator variable", "Residuals w
 rm(list = setdiff(ls(), lsf.str())) 
 
 #Loading data
-dataUKdriversKSI <- log(read.table("UKdriversKSI.txt"))
-dataUKdriversKSI <- ts(dataUKdriversKSI, start = 1969, frequency=12)
+dataUKdriversKSI <- log(read.table("UKdriversKSI.txt")) %>% ts(start = 1969, frequency=12)
 
 #Fitting model
 model <- SSModel(dataUKdriversKSI ~ SSMtrend(degree=1, Q=list(matrix(NA))) + SSMseasonal(12, sea.type='dummy', Q=matrix(0)),  H=matrix(NA))
@@ -2373,6 +2294,174 @@ plot(datats, main=label1)
 plot(data2ts, main=label2)
 
 ########################################################
+
+#Ver 2 with cumulator variable####
+
+#Removing all objects except func tions
+rm(list = setdiff(ls(), lsf.str())) 
+
+#Loading data
+dataUKdriversKSI <- log(read.table("UKdriversKSI.txt"))
+dataUKdriversKSI[193,] <- NA
+dataUKdriversKSI[2:nrow(dataUKdriversKSI),] <- dataUKdriversKSI[1:nrow(dataUKdriversKSI)-1,] 
+dataUKdriversKSI[1,] <- NA 
+dataUKdriversKSI <- ts(dataUKdriversKSI, start = 1969, frequency=12)
+
+#Fitting model
+
+#model <- SSModel(dataUKdriversKSI ~ SSMtrend(degree=1, Q=list(matrix(NA)), a1 = 0, P1inf = 0, P1 = 100) + SSMseasonal(period = 12, sea.type='dummy', Q=matrix(NA), a1 = rep(0, 11), P1inf = diag(rep(0, 11)), P1 = diag(rep(100, 11))) + SSMcustom(Z = 1, T = 1, R = 1, a1 = 0, P1inf = 0, P1 = 0, Q = matrix(NA), state_names = "cumulator"), H = matrix(0))
+
+#Important: in SSMcustom P1inf = 0 and P1 = 0
+model <- SSModel(dataUKdriversKSI ~ SSMtrend(degree=1, Q=list(matrix(NA)), a1 = 0, P1inf = 1, P1 = 0) + SSMseasonal(period = 12, sea.type='dummy', Q=matrix(NA), a1 = rep(0, 11), P1inf = diag(rep(1, 11)), P1 = diag(rep(0, 11))) + SSMcustom(Z = 1, T = 1, R = 1, a1 = 0, P1inf = 0, P1 = 0, Q = matrix(NA), state_names = "cumulator"), H = matrix(0))
+#Important: in SSMcustom P1inf = 0 and P1 = 0 to 50
+ownupdatefn <- function(pars,model){
+  
+  diag(model$Q[, , 1]) <- exp(pars[1:3])#Third element of the diagonal matrix Q is the irregular disturbance for the cumulator variable
+  
+  model$T["cumulator", , 1] <-   model$Z[1, , 1] %*% model$T[, , 1]
+  model$T <- replicate(length(dataUKdriversKSI), model$T[,,1])#Make sure that this name of data is the same as in the definition of the model above
+  model$T["cumulator", "cumulator", ]  <- 0 
+  #model$T["cumulator", "cumulator", 1:dim(model$T)[3] %% 3 == 1]  <- 0 #Changing to 0 the value in the row and column of the cumulator variable of matriz T for time t4, t8, t12 ...
+  #model$T["cumulator", "cumulator", 1]  <- 1
+  
+  model$R["cumulator", , 1] <- model$Z[1, , 1] %*% model$R[, , 1]  
+  
+  model$Z[1, colnames(model$Z)!="cumulator", 1] <- 0 # All the elements of matriz Z should be 0  except the last element that is 1 for the cumulator variable
+  
+  attr(model, "tv") <- as.integer(c(0, 0, 1, 0, 0)) #attr(model, "tv") <- as.integer(rep(1,5))
+  #Integer vector stating whether Z,H,T,R or Q is time-varying (indicated by 1 intvand 0 otherwise).  
+  #If you manually change the dimensions of the matrices youmust change this attribute also.
+  #Make sure that 1 is integer!
+  model
+}
+
+fit <- fitSSM(inits = log(c(0.001, 0.001, 0.001)), model = model, updatefn = ownupdatefn, method = "BFGS") #"Nelder-Mead", "BFGS", "CG", "L-BFGS-B", "SANN","Brent"
+
+#model <- SSModel(dataUKdriversKSI ~ SSMtrend(degree=2, Q=list(matrix(NA), matrix(NA))), H = matrix(NA))
+#fit <- fitSSM(model, inits = c(0.001,0.001, 0.001) ,method = "BFGS")
+
+outKFS <- KFS(fit$model, smoothing = c("state", "mean", "disturbance"))
+outKFS$model$Q
+
+d <- q <- 12 #Number of diffuse initial values in the state 
+w <- 3#Number of estimated hyperparameters (i.e. disturbance variances)
+l <- 12 #Autocorrelation at lag l to be provided by r-statistic / ACF function
+k <- 15#First k autocorrelations to be used in Q-statisticlogLik <- logLik( ) dlmLL(dataUKdriversKSI, mod)
+n <- 192 #Number of observations
+
+#Maximum likelihood 
+(maxLik <- logLik(fit$model, method = "BFGS")/n)
+
+#Akaike information criterion (AIC)
+(AIC <- (-2*logLik(fit$model)+2*(w+q))/n)
+
+#Maximum likelihood estimate of the irregular variance
+(H <- fit$model$H) 
+
+#Maximum likelihood estimate of the state disturbance variance 
+(Q <- fit$model$Q)
+
+#Maximum likelihood estimate of the initial values of the level and the seasonal components at time point t=1
+(initVal <- coef(outKFS$model)[1,])
+
+#Extracting residuals
+predResid <- rstandard(outKFS) #One-step-ahead prediction residuals (standardised)
+irregResid <- rstandard(outKFS, "pearson") #Auxiliary irregular  residuals (standardised)
+levelResid <- rstandard(outKFS, "state") #Auxiliary level  residuals (standardised)
+
+
+#Diagnostic for one-step-ahead prediction residuals (standardised)
+qStat <- qStatistic(predResid, k, w)
+rStat <- rStatistic(predResid, d, l)
+hStat <- hStatistic(predResid, d)
+nStat <- nStatistic(predResid, d)
+dTable(qStat, rStat, hStat, nStat)
+
+#Ver 3 Comparing residuals####
+rm(list = setdiff(ls(), lsf.str())) 
+#Model with cumulator variable
+#Loading data
+dataUKdriversKSI <- log(read.table("UKdriversKSI.txt"))
+
+#We have to add one time point with NA at the begining of the time series
+dataUKdriversKSI[193,] <- NA 
+dataUKdriversKSI[2:nrow(dataUKdriversKSI),] <- dataUKdriversKSI[1:nrow(dataUKdriversKSI)-1,] 
+dataUKdriversKSI[1,] <- NA 
+#If we want to align residuals with time points we start one month earlier 12/1968 see plot
+dataUKdriversKSI <- ts(dataUKdriversKSI, start = c(1968, 12), frequency=12)
+#If we want to aling y hats with time points we start 1969 as the time series on 1/1969
+
+#Fitting model
+
+#model <- SSModel(dataUKdriversKSI ~ SSMtrend(degree=1, Q=list(matrix(NA)), a1 = 0, P1inf = 0, P1 = 100) + SSMseasonal(period = 12, sea.type='dummy', Q=matrix(NA), a1 = rep(0, 11), P1inf = diag(rep(0, 11)), P1 = diag(rep(100, 11))) + SSMcustom(Z = 1, T = 1, R = 1, a1 = 0, P1inf = 0, P1 = 0, Q = matrix(NA), state_names = "cumulator"), H = matrix(0))
+
+#Important: in SSMcustom P1inf = 0 and P1 = 0
+model <- SSModel(dataUKdriversKSI ~ SSMtrend(degree=1, Q=list(matrix(NA)), a1 = 0, P1inf = 1, P1 = 0) + SSMseasonal(period = 12, sea.type='dummy', Q=matrix(NA), a1 = rep(0, 11), P1inf = diag(rep(1, 11)), P1 = diag(rep(0, 11))) + SSMcustom(Z = 1, T = 1, R = 1, a1 = 0, P1inf = 0, P1 = 0, Q = matrix(NA), state_names = "cumulator"), H = matrix(0))
+#Important: in SSMcustom P1inf = 0 and P1 = 0
+ownupdatefn <- function(pars,model){
+  
+  diag(model$Q[, , 1]) <- exp(pars[1:3])#Third element of the diagonal matrix Q is the irregular disturbance for the cumulator variable
+  
+  model$T["cumulator", , 1] <-   model$Z[1, , 1] %*% model$T[, , 1]
+  model$T <- replicate(length(dataUKdriversKSI), model$T[,,1])#Make sure that this name of data is the same as in the definition of the model above
+  model$T["cumulator", "cumulator", ]  <- 0 
+  #model$T["cumulator", "cumulator", 1:dim(model$T)[3] %% 3 == 1]  <- 0 #Changing to 0 the value in the row and column of the cumulator variable of matriz T for time t4, t8, t12 ...
+  #model$T["cumulator", "cumulator", 1]  <- 1
+  
+  model$R["cumulator", , 1] <- model$Z[1, , 1] %*% model$R[, , 1]
+  
+  model$Z[1, colnames(model$Z)!="cumulator", 1] <- 0 # All the elements of matriz Z should be 0  except the last element that is 1 for the cumulator variable
+  
+  attr(model, "tv") <- as.integer(c(0, 0, 1, 0, 0)) #attr(model, "tv") <- as.integer(rep(1,5))
+  #Integer vector stating whether Z,H,T,R or Q is time-varying (indicated by 1 intvand 0 otherwise).  
+  #If you manually change the dimensions of the matrices youmust change this attribute also.
+  #Make sure that 1 is integer!
+  model
+}
+
+fit <- fitSSM(inits = log(c(0.001, 0.001, 0.001)), model = model, updatefn = ownupdatefn, method = "BFGS") #"Nelder-Mead", "BFGS", "CG", "L-BFGS-B", "SANN","Brent"
+
+#model <- SSModel(dataUKdriversKSI ~ SSMtrend(degree=2, Q=list(matrix(NA), matrix(NA))), H = matrix(NA))
+#fit <- fitSSM(model, inits = c(0.001,0.001, 0.001) ,method = "BFGS")
+
+outKFS <- KFS(fit$model, smoothing = c("state", "mean", "disturbance"))
+outKFS$model$Q
+predResidC <- rstandard(outKFS)
+
+#Model without cumulator variable
+
+#Loading data
+dataUKdriversKSI <- log(read.table("UKdriversKSI.txt"))
+dataUKdriversKSI <- ts(dataUKdriversKSI, start = 1969, frequency=12)
+
+#Fitting model
+model <- SSModel(dataUKdriversKSI ~ SSMtrend(1, Q=NA) + SSMseasonal(12, sea.type='dummy', Q = NA),  H=NA)
+
+ownupdatefn <- function(pars,model,...){
+  model$H[,,1] <- exp(pars[1])
+  diag(model$Q[,,1]) <- exp(c(pars[2], pars[3]))
+  model
+}
+
+fit <- fitSSM(inits = log(c(0.001, 0.001, 0.001)), model = model, updatefn = ownupdatefn, method = "BFGS")
+
+#model <- SSModel(dataUKdriversKSI ~ SSMtrend(degree=2, Q=list(matrix(NA), matrix(NA))), H = matrix(NA))
+#fit <- fitSSM(model, inits = c(0.001,0.001, 0.001) ,method = "BFGS")
+
+outKFS <- KFS(fit$model, smoothing = c("state", "mean", "disturbance"))
+outKFS$model$Q
+
+predResidNC <- rstandard(outKFS)
+
+
+plot(predResidNC, type="l", lty="solid", col="red") # Residuals for the results without cumulator variable
+lines(predResidC,  type="l", lty="dashed", col="blue") # Residuals for the case with cumulator variable
+legend("topright", legend=c("Residuals without cumulator variable", "Residuals with cumulator variable"), lty=c("solid", "dashed"), col=c("red", "blue"))
+# If we do not add one time index at the begining of  the time series with cumulator variable we loose the first residual
+
+
+
+####################3
 
 rm(list = setdiff(ls(), lsf.str())) 
 
