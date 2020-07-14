@@ -161,6 +161,38 @@ cat(    sprintf(      paste(diagnosticTemplateTable, collapse = "\n"),
 
 }
 
+#Function to find best initial values for optim ver. 1 
+initValOpt <- function(w_ = w , model_ = model, updatefn_ = ownupdatefn, method = "L-BFGS-B", maxLoop = 100){
+  results  <- matrix(NA, maxLoop, 2) %>% 
+    data.frame() %>%
+    `colnames<-`(c("Initial.value", "Log.likelihood"))
+  #set.seed(123)
+  for (j in 1:maxLoop){
+    x <- runif(1, min = 0.00001, max = 2) %>% round(3)
+    fit <- fitSSM(inits = log(rep(x, w_)), model = model_, updatefn = updatefn_, method = method)
+    maxLik <- logLik(fit$model, method = method)/n
+    results[j, ] <- c(x, maxLik)
+  }     
+  print(results <- arrange(results, desc(Log.likelihood)))
+  return(results[1,1])
+}
+
+#Function to find best initial values for optim ver. 2
+initValOpt2 <- function(formula = "log(rep(x, 3))", model_ = model, updatefn_ = ownupdatefn, method = "L-BFGS-B", maxLoop = 100){
+  results  <- matrix(NA, maxLoop, 2) %>% 
+    data.frame() %>%
+    `colnames<-`(c("Initial.value", "Log.likelihood"))
+  #set.seed(123)
+  for (j in 1:maxLoop){
+    x <- runif(1, min = 0.00001, max = 2) %>% round(3)
+    fit <- fitSSM(inits = eval(parse(text = formula)), model = model_, updatefn = updatefn_, method = method)
+    maxLik <- logLik(fit$model, method = method)/n
+    results[j, ] <- c(x, maxLik)
+  }     
+  print(results <- arrange(results, desc(Log.likelihood)))
+  return(results[1,1])
+}
+
 
 #CHAPTER 1: Introduction####
 
@@ -894,60 +926,10 @@ l <- 12 #Autocorrelation at lag l to be provided by r-statistic / ACF function
 k <- 15#First k autocorrelations to be used in Q-statistic
 n <- 192 #Number of observations
 
-#Finding best initial values for optim and fitting model
-#avoid the results for local maxima in log-likelihood function
-method = "L-BFGS-B" # BFGS or L-BFGS-B
-maxLoop = 200
-initValOpt  <- matrix(NA, maxLoop, 2) %>% 
-  data.frame() %>%
-  `colnames<-`(c("Initial.value", "Log.likelihood"))
-#set.seed(123)
-for (j in 1:maxLoop){
-  x <- runif(1, min = 0.00001, max = 2) %>% round(3)
-  fit <- fitSSM(inits = log(rep(x, w)), model = model, updatefn = ownupdatefn, method = method)
-  (maxLik <- logLik(fit$model, method = method)/n)
-  initValOpt[j, ] <- c(x, maxLik)
-  }     
-(initValOpt <- arrange(initValOpt, desc(Log.likelihood)))
-
-x = initValOpt[1,1] #Best initial values for optim
-fit <- fitSSM(inits = log(rep(x, w)), model = model, updatefn = ownupdatefn, method = method)
+#x <- initValOpt() #Finding best initial values for optim
+fit <- fitSSM(inits = log(rep(0.887, w)), model = model, updatefn = ownupdatefn, method = "L-BFGS-B")
 outKFS <- KFS(fit$model, smoothing = c("state", "mean", "disturbance"))
 
-#ver 2 
-      
-
-modelT <- SSModel(dataUKdriversKSI ~ SSMtrend(1, Q = NA) + SSMseasonal(12, sea.type = 'dummy', Q = NA),  H = NA)
-ownupdatefnT <- function(pars,model){
-  model$H[,,1] <- exp(pars[1])
-  diag(model$Q[,,1]) <- exp(c(pars[2], pars[3]))
-  model
-}
-
-qT <- q
-initValOptFun <- function(q = q , model = model, updatefn = ownupdatefn, method = "L-BFGS-B", maxLoop = 200){
-  
-  
-  initValOpt  <- matrix(NA, maxLoop, 2) %>% 
-    data.frame() %>%
-    `colnames<-`(c("Initial.value", "Log.likelihood"))
-  #set.seed(123)
-  for (j in 1:maxLoop){
-    x <- runif(1, min = 0.00001, max = 2) %>% round(3)
-    fit <- fitSSM(inits = log(rep(x, w)), model = model, updatefn = ownupdatefn, method = method)
-    (maxLik <- logLik(fit$model, method = method)/n)
-    initValOpt[j, ] <- c(x, maxLik)
-  }     
-  print(initValOpt <- arrange(initValOpt, desc(Log.likelihood)))
-  
-  x = initValOpt[1,1] #Best initial values for optim
-  fit <- fitSSM(inits = log(rep(x, w)), model = model, updatefn = ownupdatefn, method = method)
-  outKFS <- KFS(fit$model, smoothing = c("state", "mean", "disturbance"))
-  outKFS
-}
-
-initValOptFun()
-       
 #Maximum likelihood 
 (maxLik <- logLik(fit$model, method = method)/n)
 
