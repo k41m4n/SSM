@@ -783,6 +783,7 @@ par(mar = c(4, 4, 1.5, 4))
 plot(smoothEstStat[, "slope"], xlab = "", ylab = "", lty = 3)
 abline(h = 0, lty = 1)
 legend("topright",leg = "stochastic slope", cex = 0.5, lty = 1, horiz = T)
+par(mfrow=c(1, 1))
 
 #Auxiliary irregular residuals (non-standardised)
 irregResid <- residuals(outKFS, "pearson") 
@@ -926,6 +927,7 @@ l <- 12 #Autocorrelation at lag l to be provided by r-statistic / ACF function
 k <- 15#First k autocorrelations to be used in Q-statistic
 n <- 192 #Number of observations
 
+#Fitting model
 #x <- initValOpt() #Finding best initial values for optim
 fit <- fitSSM(inits = log(rep(0.887, w)), model = model, updatefn = ownupdatefn, method = "L-BFGS-B")
 outKFS <- KFS(fit$model, smoothing = c("state", "mean", "disturbance"))
@@ -1005,7 +1007,7 @@ rm(list = setdiff(ls(), lsf.str()))
 #Loading data
 dataUKdriversKSI <- log(read.table("UKdriversKSI.txt")) %>% ts(start = 1969, frequency=12)
 
-#Fitting model
+#Defining model
 model <- SSModel(dataUKdriversKSI ~ SSMtrend(degree=1, Q=list(matrix(NA))) + SSMseasonal(12, sea.type='dummy', Q=matrix(0)),  H=matrix(NA))
 
 ownupdatefn <- function(pars,model,...){
@@ -1014,22 +1016,19 @@ ownupdatefn <- function(pars,model,...){
   model
 }
 
-fit <- fitSSM(inits = c(0.001, 0.001), model = model, updatefn = ownupdatefn, method = "BFGS")
-
-#model <- SSModel(dataUKdriversKSI ~ SSMtrend(degree=2, Q=list(matrix(NA), matrix(NA))), H = matrix(NA))
-#fit <- fitSSM(model, inits = c(0.001,0.001, 0.001) ,method = "BFGS")
-
-outKFS <- KFS(fit$model, smoothing = c("state", "mean", "disturbance"))
-outKFS$model$Q
-
 d <- q <- 12 #Number of diffuse initial values in the state 
-w <- 2#Number of estimated hyperparameters (i.e. disturbance variances)
+w <- 2 #Number of estimated hyperparameters (i.e. disturbance variances)
 l <- 12 #Autocorrelation at lag l to be provided by r-statistic / ACF function
-k <- 15#First k autocorrelations to be used in Q-statisticlogLik <- logLik( ) dlmLL(dataUKdriversKSI, mod)
+k <- 15#First k autocorrelations to be used in Q-statistic
 n <- 192 #Number of observations
 
+#Fitting model
+#x <- initValOpt() #Finding best initial values for optim
+fit <- fitSSM(inits = log(rep(1.428, w)), model = model, updatefn = ownupdatefn, method = "L-BFGS-B")
+outKFS <- KFS(fit$model, smoothing = c("state", "mean", "disturbance"))
+
 #Maximum likelihood 
-(maxLik <- logLik(fit$model, method = "BFGS")/n)
+(maxLik <- logLik(fit$model, method = method)/n)
 
 #Akaike information criterion (AIC)
 (AIC <- (-2*logLik(fit$model)+2*(w+q))/n)
@@ -1040,21 +1039,20 @@ n <- 192 #Number of observations
 #Maximum likelihood estimate of the state disturbance variance 
 (Q <- fit$model$Q)
 
-#Maximum likelihood estimate of the initial values of the level and seasonal components at time point t=1
-(initVal <- coef(outKFS$model)[1,])
+#Smoothed estimates of states (level and seasonal components)
+smoothEstStat <- coef(outKFS$model)
 
-#Extracting residuals
-predResid <- rstandard(outKFS) #One-step-ahead prediction residuals (standardised)
-irregResid <- rstandard(outKFS, "pearson") #Auxiliary irregular  residuals (standardised)
-levelResid <- rstandard(outKFS, "state") #Auxiliary level  residuals (standardised)
+#Initial values of the smoothed estimates of states
+(initSmoothEstStat <- smoothEstStat[1,])
 
+#Auxiliary irregular residuals (non-standardised)
+#irregResid <- residuals(outKFS, "pearson") 
 
-#Diagnostic for one-step-ahead prediction residuals (standardised)
-qStat <- qStatistic(predResid, k, w)
-rStat <- rStatistic(predResid, d, l)
-hStat <- hStatistic(predResid, d)
-nStat <- nStatistic(predResid, d)
-dTable(qStat, rStat, hStat, nStat)
+#One-step-ahead prediction residuals (standardised)
+#predResid <- rstandard(outKFS) 
+
+#Auxiliary level  residuals (standardised)
+#levelResid <- rstandard(outKFS, "state") 
 
 
 #4.4 The local level and seasonal model and UK inflation####
@@ -1063,11 +1061,7 @@ dTable(qStat, rStat, hStat, nStat)
 rm(list = setdiff(ls(), lsf.str())) 
 
 #Loading data
-#dataUKdriversKSI <- log(read.table("UKdriversKSI.txt"))
-#dataUKdriversKSI <- ts(dataUKdriversKSI, start = 1969, frequency=12)
-
-dataUKinflation <- read.table("UKinflation.txt")
-dataUKinflation <- ts(dataUKinflation, start=1950, frequency=4)
+dataUKinflation <- read.table("UKinflation.txt") %>% ts(start=1950, frequency=4)
 
 #Fitting model
 model <- SSModel(dataUKinflation ~ SSMtrend(degree=1, Q=list(matrix(NA))) + SSMseasonal(period=4, sea.type='dummy', Q=matrix(NA)),  H=matrix(NA))
@@ -1078,19 +1072,19 @@ ownupdatefn <- function(pars,model){
   model
 }
 
-fit <- fitSSM(inits = c(0.001, 0.001, 0.001), model = model, updatefn = ownupdatefn, method = "L-BFGS-B") #It does not work with BFGS
-
-outKFS <- KFS(fit$model, smoothing = c("state", "mean", "disturbance"))
-outKFS$model$Q
-
 d <- q <- 4 #Number of diffuse initial values in the state 
 w <- 3#Number of estimated hyperparameters (i.e. disturbance variances)
 l <- 4 #Autocorrelation at lag l to be provided by r-statistic / ACF function
 k <- 10#First k autocorrelations to be used in Q-statisticlogLik <- logLik( ) dlmLL(dataUKdriversKSI, mod)
 n <- 208 #Number of observations
 
+#Fitting model
+x <- initValOpt() #Finding best initial values for optim
+fit <- fitSSM(inits = log(rep(1.207, w)), model = model, updatefn = ownupdatefn, method = "L-BFGS-B")
+outKFS <- KFS(fit$model, smoothing = c("state", "mean", "disturbance"))
+
 #Maximum likelihood 
-(maxLik <- logLik(fit$model, method = "BFGS")/n)
+(maxLik <- logLik(fit$model, method = method)/n)
 
 #Akaike information criterion (AIC)
 (AIC <- (-2*logLik(fit$model)+2*(w+q))/n)
@@ -1101,21 +1095,48 @@ n <- 208 #Number of observations
 #Maximum likelihood estimate of the state disturbance variance 
 (Q <- fit$model$Q)
 
-#Maximum likelihood estimate of the final values of the level and seasonal at time point t=208
-(finalVal <- coef(outKFS$model)[208,])
+#Smoothed estimates of states (level and seasonal components)
+smoothEstStat <- coef(outKFS$model)
 
-#Extracting residuals
-predResid <- rstandard(outKFS) #One-step-ahead prediction residuals (standardised)
-irregResid <- rstandard(outKFS, "pearson") #Auxiliary irregular  residuals (standardised)
-levelResid <- rstandard(outKFS, "state") #Auxiliary level  residuals (standardised)
+#Last values of the smoothed estimates of states
+(initSmoothEstStat <- smoothEstStat[208,])
 
+#Auxiliary irregular residuals (non-standardised)
+irregResid <- residuals(outKFS, "pearson") 
+
+#Figure 4.10 Stochastic level, seasonal and irregular in UK inflation series
+par(mfrow = c(3, 1), mar = c(2, 2, 2, 2))
+plot(dataUKinflation, xlab = "", ylab = "", lty = 1)
+lines(smoothEstStat[, "level"], lty = 3)
+title(main = "Figure 4.10 Stochastic level, seasonal and irregular in UK inflation series", 
+      cex.main = 1)
+legend("topleft",leg = c("quarterly price changes in UK", "stochastic level"), 
+       cex = 0.8, lty = c(1, 3), horiz = T)
+
+plot(smoothEstStat[, "sea_dummy1"], xlab = "", ylab = "", lty = 1, ylim = c(-0.006, 0.008))
+abline(h = 0, lty = 3)
+legend("topleft",leg = "stochastic seasonal", 
+       cex = 0.8, lty = 1, horiz = T)
+
+plot(irregResid  , xlab = "", ylab = "", lty = 1)
+abline(h = 0, lty = 3)
+legend("topleft",leg = "irregular",cex = 0.8, lty = 2, horiz = T)
+par(mfrow=c(1, 1))
 
 #Diagnostic for one-step-ahead prediction residuals (standardised)
+predResid <- rstandard(outKFS) 
 qStat <- qStatistic(predResid, k, w)
 rStat <- rStatistic(predResid, d, l)
 hStat <- hStatistic(predResid, d)
 nStat <- nStatistic(predResid, d)
-dTable(qStat, rStat, hStat, nStat)
+
+#Table 4.3. Diagnostic tests for local level and seasonal 
+#model and UK inflation series
+title = "Table 4.3. Diagnostic tests for local level and seasonal model \nand UK inflation series"
+dTable(qStat, rStat, hStat, nStat, title)
+
+#Auxiliary level  residuals (standardised)
+#levelResid <- rstandard(outKFS, "state") 
 
 #CHAPTER 5: The local level model with explanatory variable####
 
