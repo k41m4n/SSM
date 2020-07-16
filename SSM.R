@@ -312,9 +312,6 @@ nStat <- nStatistic(predResid, d)
 title = "Table 2.1. Diagnostic tests for deterministic level model and log UK drivers \nKSI"
 dTable(qStat, rStat, hStat, nStat, title)
 
-#Auxiliary level  residuals (standardised)
-#levelResid <- rstandard(outKFS, "state") 
-
 
 #2.2 Stochastic level####
 
@@ -388,9 +385,6 @@ nStat <- nStatistic(predResid, d)
 title = "Table 2.2. Diagnostic tests for local level model and log UK drivers KSI"
 dTable(qStat, rStat, hStat, nStat, title)
 
-#Auxiliary level  residuals (standardised)
-#levelResid <- rstandard(outKFS, "state") 
-
 
 #2.3 The local level model and Norwegian fatalities####
 
@@ -463,9 +457,6 @@ nStat <- nStatistic(predResid, d)
 title = "Table 2.3. Diagnostic tests for local level model and log Norwegian \nfatalities"
 dTable(qStat, rStat, hStat, nStat, title)
 
-#Auxiliary level  residuals (standardised)
-#levelResid <- rstandard(outKFS, "state") 
-
 
 #Chapter 3: The local linear trend model####
 
@@ -520,8 +511,7 @@ nStat <- nStatistic(predResid, d)
 title = "Table 3.1 Diagnostic tests for deterministic linear trend model and log UK \ndrivers KSI"
 dTable(qStat, rStat, hStat, nStat, title)
 
-#Auxiliary level  residuals (standardised)
-#levelResid <- rstandard(outKFS, "state") 
+
  
 
 #3.2 Stochastic level and slope####
@@ -601,9 +591,6 @@ nStat <- nStatistic(predResid, d)
 title = "Table 3.2 Diagnostic tests for the local linear trend model applied to \nthe log of the UK drivers KSI"
 dTable(qStat, rStat, hStat, nStat, title)
 
-#Auxiliary level  residuals (standardised)
-#levelResid <- rstandard(outKFS, "state") 
-
 
 #3.3 Stochastic level and deterministic slope####
 #Removing all objects except functions
@@ -663,9 +650,6 @@ legend("topright",leg = c("log UK drivers KSI", "stochastic level and determinis
 #nStat <- nStatistic(predResid, d)
 #dTable(qStat, rStat, hStat, nStat, title = "")
 
-#Auxiliary level  residuals (standardised)
-#levelResid <- rstandard(outKFS, "state") 
-
 
 #3.4 The local linear trend model and Finnish fatalities####
 
@@ -713,16 +697,8 @@ smoothEstStat <- outKFS$alphahat
 #Initial values of the smoothed estimates of states
 (initSmoothEstStat <- smoothEstStat[1,])
 
-#Diagnostic for one-step-ahead prediction residuals (standardised)
+#One-step-ahead prediction residuals (standardised)
 #predResid <- rstandard(outKFS) 
-#qStat <- qStatistic(predResid, k, w)
-#rStat <- rStatistic(predResid, d, l)
-#hStat <- hStatistic(predResid, d)
-#nStat <- nStatistic(predResid, d)
-#dTable(qStat, rStat, hStat, nStat, title = "")
-
-#Auxiliary level  residuals (standardised)
-#levelResid <- rstandard(outKFS, "state") 
 
 
 #B) Deterministic level and stochastic slope####
@@ -806,9 +782,6 @@ nStat <- nStatistic(predResid, d)
 #model, and log Finnish fatalities
 title = "Table 3.3. Diagnostic tests for deterministic level and stochastic slope \nmodel, and log Finnish fatalities"
 dTable(qStat, rStat, hStat, nStat, title)
-
-#Auxiliary level  residuals (standardised)
-#levelResid <- rstandard(outKFS, "state") 
 
 
 #CHAPTER 4: Local level model with seasonal####
@@ -902,8 +875,6 @@ nStat <- nStatistic(predResid, d)
 title = "Table 4.1. Diagnostic tests for deterministic level and seasonal model \nand log UK drivers KSI"
 dTable(qStat, rStat, hStat, nStat, title)
 
-#Auxiliary level  residuals (standardised)
-#levelResid <- rstandard(outKFS, "state") 
 
 #4.2 Stochastic level and seasonal####
 
@@ -995,9 +966,6 @@ nStat <- nStatistic(predResid, d)
 title = "Table 4.2. Diagnostic tests for stochastic level and seasonal model \nand log UK drivers KSI"
 dTable(qStat, rStat, hStat, nStat, title)
 
-#Auxiliary level  residuals (standardised)
-#levelResid <- rstandard(outKFS, "state") 
-
 
 #4.3 Stochastic level and deterministic seasonal####
 
@@ -1051,9 +1019,6 @@ smoothEstStat <- coef(outKFS$model)
 #One-step-ahead prediction residuals (standardised)
 #predResid <- rstandard(outKFS) 
 
-#Auxiliary level  residuals (standardised)
-#levelResid <- rstandard(outKFS, "state") 
-
 
 #4.4 The local level and seasonal model and UK inflation####
 
@@ -1079,7 +1044,7 @@ k <- 10#First k autocorrelations to be used in Q-statisticlogLik <- logLik( ) dl
 n <- 208 #Number of observations
 
 #Fitting model
-x <- initValOpt() #Finding best initial values for optim
+#x <- initValOpt() #Finding best initial values for optim
 fit <- fitSSM(inits = log(rep(1.207, w)), model = model, updatefn = ownupdatefn, method = "L-BFGS-B")
 outKFS <- KFS(fit$model, smoothing = c("state", "mean", "disturbance"))
 
@@ -1135,40 +1100,45 @@ nStat <- nStatistic(predResid, d)
 title = "Table 4.3. Diagnostic tests for local level and seasonal model \nand UK inflation series"
 dTable(qStat, rStat, hStat, nStat, title)
 
-#Auxiliary level  residuals (standardised)
-#levelResid <- rstandard(outKFS, "state") 
 
 #CHAPTER 5: The local level model with explanatory variable####
 
 #5.1 Deterministic level and explanatory variable####
 
-#A) With time as explanatory variable####
+#A) Time as explanatory variable####
 
 #Removing all objects except functions
 rm(list = setdiff(ls(), lsf.str())) 
 
 #Loading data
-dataUKdriversKSI <- log(read.table("UKdriversKSI.txt"))
-dataUKdriversKSI <- ts(dataUKdriversKSI, start = 1969,frequency=12)
+dataUKdriversKSI <- log(read.table("UKdriversKSI.txt")) %>% ts(start = 1969,frequency=12)
 time <- as.numeric(seq(from=1, to=192))
 
-#Fitting model
+#Defining model
 model <- SSModel(dataUKdriversKSI ~ SSMtrend(degree=1, Q=list(matrix(0))) + SSMregression(~ time, Q=matrix(0)), H = matrix(NA))
-fit <- fitSSM(model, inits = 0.001 ,method = "BFGS")
-outKFS <- KFS(fit$model, smoothing = c("state", "mean", "disturbance"))
- 
+
+ownupdatefn <- function(pars,model){
+  model$H[,,1] <- exp(pars[1])
+  diag(model$Q[,,1]) <- c(0, 0)
+  model
+}
+
 d <- q <- 2 #Number of diffuse initial values in the state 
 w <- 1#Number of estimated hyperparameters (i.e. disturbance variances)
 l <- 12 #Autocorrelation at lag l to be provided by r-statistic / ACF function
 k <- 15#First k autocorrelations to be used in Q-statistic
 n <- 192 #Number of observations
 
+#Fitting model
+#x <- initValOpt() #Finding best initial values for optim
+fit <- fitSSM(model, inits = log(rep(0.286, w)), updatefn = ownupdatefn, method = "L-BFGS-B")
+outKFS <- KFS(fit$model, smoothing = c("state", "mean", "disturbance"))
+ 
 #Maximum likelihood 
 (maxLik <- logLik(fit$model)/n)
 
 #Akaike information criterion (AIC)
 (AIC <- (-2*logLik(fit$model)+2*(w+q))/n)
-
 
 #Maximum likelihood estimate of the irregular variance
 (H <- fit$model$H)
@@ -1176,40 +1146,36 @@ n <- 192 #Number of observations
 #Maximum likelihood estimate of the state disturbance variance 
 (Q <- fit$model$Q)
 
-#Maximum likelihood estimate of the initial value of the level at time point t=1
-(initVal <- coef(outKFS$model)[1,])
+#Smoothed estimates of states 
+smoothEstStat <- coef(outKFS$model)
+
+#Initial values of the smoothed estimates of states
+(initSmoothEstStat <- smoothEstStat[1,])
+
+#One-step-ahead prediction residuals (standardised)
+#predResid <- rstandard(outKFS) 
+
+#Auxiliary irregular residuals (non-standardised)
+#irregResid <- residuals(outKFS, "pearson") 
 
 
-#Extracting residuals
-predResid <- rstandard(outKFS) #One-step-ahead prediction residuals (standardised)
-irregResid <- rstandard(outKFS, "pearson") #Auxiliary irregular  residuals (standardised)
-levelResid <- rstandard(outKFS, "state") #Auxiliary level  residuals (standardised)
-
-
-
-#Diagnostic for one-step-ahead prediction residuals (standardised)
-qStat <- qStatistic(predResid, k, w)
-rStat <- rStatistic(predResid, d, l)
-hStat <- hStatistic(predResid, d)
-nStat <- nStatistic(predResid, d)
-dTable(qStat, rStat, hStat, nStat)
-
-#B) With petrol prices as explanatory variable####
+#B) Petrol prices as explanatory variable####
 
 #Removing all objects except functions
 rm(list = setdiff(ls(), lsf.str())) 
 
 #Loading data
-dataUKdriversKSI <- log(read.table("UKdriversKSI.txt"))
-dataUKdriversKSI <- ts(dataUKdriversKSI, start = 1969,frequency=12)
+dataUKdriversKSI <- log(read.table("UKdriversKSI.txt")) %>% ts(start = 1969,frequency=12)
 petrolPrices <- read.table("logUKpetrolprice.txt")[,1]
 
-#Fitting model
-
-
+#Defining model
 model <- SSModel(dataUKdriversKSI ~ SSMtrend(degree=1, Q=list(matrix(0))) + SSMregression(~ petrolPrices, Q=matrix(0)), H = matrix(NA))
-fit <- fitSSM(model, inits = 0.001, method = "BFGS")
-outKFS <- KFS(fit$model, smoothing = c("state", "mean", "disturbance"))
+
+ownupdatefn <- function(pars,model){
+  model$H[,, 1] <- exp(pars[1])
+  diag(model$Q[,, 1]) <- c(0, 0)
+  model
+}
 
 d <- q <- 2 #Number of diffuse initial values in the state 
 w <- 1#Number of estimated hyperparameters (i.e. disturbance variances)
@@ -1217,12 +1183,16 @@ l <- 12 #Autocorrelation at lag l to be provided by r-statistic / ACF function
 k <- 15#First k autocorrelations to be used in Q-statistic
 n <- 192 #Number of observations
 
+#Fitting model
+#x <- initValOpt() #Finding best initial values for optim
+fit <- fitSSM(model, inits = log(rep(1.1, w)), updatefn = ownupdatefn, method = "L-BFGS-B")
+outKFS <- KFS(fit$model, smoothing = c("state", "mean", "disturbance"))
+
 #Maximum likelihood 
 (maxLik <- logLik(fit$model)/n)
 
 #Akaike information criterion (AIC)
 (AIC <- (-2*logLik(fit$model)+2*(w+q))/n)
-
 
 #Maximum likelihood estimate of the irregular variance
 (H <- fit$model$H)
@@ -1230,23 +1200,42 @@ n <- 192 #Number of observations
 #Maximum likelihood estimate of the state disturbance variance 
 (Q <- fit$model$Q)
 
-#Maximum likelihood estimate of the initial value of the level at time point t=1
-(initVal <- coef(outKFS$model)[1,])
+#Smoothed estimates of states 
+smoothEstStat <- coef(outKFS$model)
 
+#Initial values of the smoothed estimates of states
+(initSmoothEstStat <- smoothEstStat[1,])
 
-#Extracting residuals
-predResid <- rstandard(outKFS) #One-step-ahead prediction residuals (standardised)
-irregResid <- rstandard(outKFS, "pearson") #Auxiliary irregular  residuals (standardised)
-levelResid <- rstandard(outKFS, "state") #Auxiliary level  residuals (standardised)
+#Figure 5.1. Deterministic level and explanatory variable 'log petrol price'
+plot(dataUKdriversKSI, xlab = "", ylab = "", lty = 1)
+lines(smoothEstStat[, "level"] + smoothEstStat[1, "petrolPrices"] * petrolPrices, lty = 3)
+title(main = "Figure 5.1. Deterministic level and explanatory variable 'log petrol price'", 
+      cex.main = 0.8)
+legend("topright",leg = c("log UK drivers KSI", "deterministic level + beta*log(PETROL PRICE)"), 
+       cex = 0.5, lty = c(1, 3), horiz = T)
 
+#Figure 5.2. Conventional classical regression representation of deterministic level 
+#and explanatory variable 'log petrol price'
+plot(petrolPrices, dataUKdriversKSI,  xlab = "", ylab = "", pch = 3, cex = 0.5, cex.lab = 0.8, cex.axis = 0.9)
+abline(a = smoothEstStat[1, "level"], b = smoothEstStat[1, "petrolPrices"], lty = 3)
+title(main = "Figure 5.2. Conventional classical regression representation of deterministic level and explanatory variable 'log petrol price'", 
+      cex.main = 0.8)
+legend("topright",leg = c("log UK drivers KSI against log PETROL PRICE", "deterministic level + beta*log(PETROL PRICE)"), 
+       cex = 0.5, lty = c(1, 3), horiz = T)
 
+#Auxiliary irregular residuals (non-standardised)
+irregResid <- residuals(outKFS, "pearson") 
 
-#Diagnostic for one-step-ahead prediction residuals (standardised)
-qStat <- qStatistic(predResid, k, w)
-rStat <- rStatistic(predResid, d, l)
-hStat <- hStatistic(predResid, d)
-nStat <- nStatistic(predResid, d)
-dTable(qStat, rStat, hStat, nStat)
+#Figure 5.3. Irregular  component for deterministic level model 
+#with deterministic explanatory variable 'log petrol price'
+plot(irregResid  , xlab = "", ylab = "", lty = 2)
+abline(h = 0, lty = 1)
+title(main = "Figure 5.3. Irregular  component for deterministic level model with \n deterministic explanatory variable 'log petrol price'",
+      cex.main = 0.8)
+legend("topleft",leg = "irregular",cex = 0.5, lty = 2, horiz = T)
+
+#One-step-ahead prediction residuals (standardised)
+#predResid <- rstandard(outKFS) 
 
 #5.2 Stochastic level and explanatory variable####
 
@@ -1254,21 +1243,17 @@ dTable(qStat, rStat, hStat, nStat)
 rm(list = setdiff(ls(), lsf.str())) 
 
 #Loading data
-dataUKdriversKSI <- log(read.table("UKdriversKSI.txt"))
-dataUKdriversKSI <- ts(dataUKdriversKSI, start = 1969,frequency=12)
+dataUKdriversKSI <- log(read.table("UKdriversKSI.txt")) %>% ts(start = 1969,frequency=12)
 petrolPrices <- read.table("logUKpetrolprice.txt")[,1]
 
-#Fitting model
+#Defining model
+model <- SSModel(dataUKdriversKSI ~ SSMtrend(degree=1, Q=list(matrix(0))) + SSMregression(~ petrolPrices, Q=matrix(0)), H = matrix(NA))
 
-ownupdatefn <- function(pars,model,...){
+ownupdatefn <- function(pars,model){
   model$H[,,1] <- exp(pars[1])
   diag(model$Q[,,1]) <- c(0, exp(pars[2]))
   model
 }
-
-model <- SSModel(dataUKdriversKSI ~ SSMtrend(degree=1, Q=list(matrix(NA))) + SSMregression(~ petrolPrices, Q=matrix(0)), H = matrix(NA))
-fit <- fitSSM(model, inits = c(0.001, 0.001), updatefn=ownupdatefn, method = "BFGS")
-outKFS <- KFS(fit$model, smoothing = c("state", "mean", "disturbance"))
 
 d <- q <- 2 #Number of diffuse initial values in the state 
 w <- 2#Number of estimated hyperparameters (i.e. disturbance variances)
@@ -1276,12 +1261,16 @@ l <- 12 #Autocorrelation at lag l to be provided by r-statistic / ACF function
 k <- 15#First k autocorrelations to be used in Q-statistic
 n <- 192 #Number of observations
 
+#Fitting model
+#x <- initValOpt() #Finding best initial values for optim
+fit <- fitSSM(model, inits = log(rep(0.971, w)), updatefn = ownupdatefn, method = "L-BFGS-B")
+outKFS <- KFS(fit$model, smoothing = c("state", "mean", "disturbance"))
+
 #Maximum likelihood 
 (maxLik <- logLik(fit$model)/n)
 
 #Akaike information criterion (AIC)
 (AIC <- (-2*logLik(fit$model)+2*(w+q))/n)
-
 
 #Maximum likelihood estimate of the irregular variance
 (H <- fit$model$H)
@@ -1289,21 +1278,33 @@ n <- 192 #Number of observations
 #Maximum likelihood estimate of the state disturbance variance 
 (Q <- fit$model$Q)
 
-#Maximum likelihood estimate of the initial value of the level at time point t=1
-(initVal <- coef(outKFS$model)[1,])
+#Smoothed estimates of states 
+smoothEstStat <- coef(outKFS$model)
 
+#Initial values of the smoothed estimates of states
+(initSmoothEstStat <- smoothEstStat[1,])
 
-#Extracting residuals
-predResid <- rstandard(outKFS) #One-step-ahead prediction residuals (standardised)
-irregResid <- rstandard(outKFS, "pearson") #Auxiliary irregular  residuals (standardised)
-levelResid <- rstandard(outKFS, "state") #Auxiliary level  residuals (standardised)
+#Figure 5.4. Stochastic level and deterministic explanatory variable 'log petrol price'
+plot(dataUKdriversKSI, xlab = "", ylab = "", lty = 1)
+lines(smoothEstStat[, "level"] + smoothEstStat[1, "petrolPrices"] * petrolPrices, lty = 3)
+title(main = "Figure 5.4. Stochastic level and deterministic explanatory variable 'log petrol price'", 
+      cex.main = 0.8)
+legend("topright",leg = c("log UK drivers KSI", "stochastic level + beta*log(PETROL PRICE)"), 
+       cex = 0.5, lty = c(1, 3), horiz = T)
 
-#Diagnostic for one-step-ahead prediction residuals (standardised)
-qStat <- qStatistic(predResid, k, w)
-rStat <- rStatistic(predResid, d, l)
-hStat <- hStatistic(predResid, d)
-nStat <- nStatistic(predResid, d)
-dTable(qStat, rStat, hStat, nStat)
+#Auxiliary irregular residuals (non-standardised)
+irregResid <- residuals(outKFS, "pearson") 
+
+#Figure 5.5. Irregular component for stochastic level model 
+#with deterministic explanatory variable 'log petrol price'
+plot(irregResid  , xlab = "", ylab = "", lty = 2)
+abline(h = 0, lty = 1)
+title(main = "Figure 5.5. Irregular  component for stochastic level model with \n deterministic explanatory variable 'log petrol price'",
+      cex.main = 0.8)
+legend("topleft",leg = "irregular",cex = 0.5, lty = 2, horiz = T)
+
+#One-step-ahead prediction residuals (standardised)
+#predResid <- rstandard(outKFS) 
 
 
 #Chapter 6: The local level model with intervention variable
@@ -1313,8 +1314,7 @@ dTable(qStat, rStat, hStat, nStat)
 rm(list = setdiff(ls(), lsf.str())) 
 
 #Loading data
-dataUKdriversKSI <- log(read.table("UKdriversKSI.txt"))
-dataUKdriversKSI <- ts(dataUKdriversKSI, start = 1969,frequency=12)
+dataUKdriversKSI <- log(read.table("UKdriversKSI.txt")) %>% ts(start = 1969,frequency=12)
 seatbeltLaw <- as.numeric(rep(c(0, 1), times=c(169, 23)))  #Intervention variable
 
 
