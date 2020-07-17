@@ -1204,7 +1204,11 @@ outKFS <- KFS(fit$model, smoothing = c("state", "mean", "disturbance"))
 smoothEstStat <- coef(outKFS$model)
 
 #Initial values of the smoothed estimates of states
-(initSmoothEstStat <- smoothEstStat[1,])
+(initSmoothEstStat <- smoothEstStat[1, 1])
+
+#Elasticity: percentage change in the number of UK drivers KSI due to petrol price
+#1% increase in the petrol price results in a x% change in the number of drivers KSI
+(elast <- smoothEstStat[1, 1] %>% unname)
 
 #Figure 5.1. Deterministic level and explanatory variable 'log petrol price'
 plot(dataUKdriversKSI, xlab = "", ylab = "", lty = 1)
@@ -1284,6 +1288,10 @@ smoothEstStat <- coef(outKFS$model)
 #Initial values of the smoothed estimates of states
 (initSmoothEstStat <- smoothEstStat[1,])
 
+#Elasticity: percentage change in the number of UK drivers KSI due to petrol price
+#1% increase in the petrol price results in a x% change in the number of drivers KSI
+(elast <- smoothEstStat[1, 1] %>% unname)
+
 #Figure 5.4. Stochastic level and deterministic explanatory variable 'log petrol price'
 plot(dataUKdriversKSI, xlab = "", ylab = "", lty = 1)
 lines(smoothEstStat[, "level"] + smoothEstStat[1, "petrolPrices"] * petrolPrices, lty = 3)
@@ -1317,32 +1325,30 @@ rm(list = setdiff(ls(), lsf.str()))
 dataUKdriversKSI <- log(read.table("UKdriversKSI.txt")) %>% ts(start = 1969,frequency=12)
 seatbeltLaw <- as.numeric(rep(c(0, 1), times=c(169, 23)))  #Intervention variable
 
+#Defining model
+model <- SSModel(dataUKdriversKSI ~ SSMtrend(degree = 1, Q = list(matrix(0))) + SSMregression(~ seatbeltLaw, Q = matrix(0), P1 = 100, P1inf = 0), H = matrix(NA))
+#Non-exact difuse initialisation is used for the regression coefficient state of the intervention variable. 
+#The standardized residuals are not defined for the diffuse phase, which does not end before there is a change in the intervention variable, 
+#and thus we only have standardized residual estimates available after the intervention. It is suggested to switch to non-exact diffuse prior 
+#for the intervention variable: SSMregression(~ seatbeltLaw, Q=matrix(0), P1 = 100, P1inf = 0)
 
-#Fitting model
-model <- SSModel(dataUKdriversKSI ~ SSMtrend(degree=1, Q=list(matrix(0))) + SSMregression(~ seatbeltLaw, Q=matrix(0), P1=100, P1inf=0), H = matrix(NA))
-ownupdatefn <- function(pars,model,...){
-  model$H[,,1] <- exp(pars[1])
+ownupdatefn <- function(pars,model){
+  model$H[,, 1] <- exp(pars[1])
+  diag(model$Q[,, 1]) <- c(0, 0)
   model
 }
 
-#Comment from Helske on GitHub: SSMregressionThis is because you are using a diffuse initialization for the regression coefficient state of the intervention variable. 
-#The standardized residuals are not defined for the diffuse phase, which does not end before there is a change in the intervention variable, 
-#and thus you only have standardized residual estimates available after the intervention. I suggest that you switch to nondiffuse prior 
-#for the intervention variable, e.g.: SSMregression(~ seatbeltLaw, Q=matrix(0), P1 = 100, P1inf = 0)
-
-
-fit <- fitSSM(model, inits = 0.001, updatefn = ownupdatefn, method = "SANN")
-
-#fit <- fitSSM(model, inits = c(0.001, 0.001), updatefn=ownupdatefn, method = "BFGS")
-
-outKFS <- KFS(fit$model, smoothing = c("state", "mean", "disturbance"))
-
-d <- 1 #Number of the elements of the initial state vector with exact di???use initialization
-q <- 2 #Number of the elements of the initial state vector with exact or non-exact di???use initialization
+d <- 1 #Number of the elements of the initial state vector with exact difuse initialization
+q <- 2 #Number of the elements of the initial state vector with  difuse initialization (exact or non-exact)
 w <- 1#Number of estimated hyperparameters (i.e. disturbance variances)
 l <- 12 #Autocorrelation at lag l to be provided by r-statistic / ACF function
 k <- 15#First k autocorrelations to be used in Q-statistic
 n <- 192 #Number of observations
+
+#Fitting model
+#x <- initValOpt() #Finding best initial values for optim
+fit <- fitSSM(model, inits = log(rep(0.595, w)), updatefn = ownupdatefn, method = "L-BFGS-B")
+outKFS <- KFS(fit$model, smoothing = c("state", "mean", "disturbance"))
 
 #Maximum likelihood 
 (maxLik <- logLik(fit$model)/n)
@@ -1350,69 +1356,90 @@ n <- 192 #Number of observations
 #Akaike information criterion (AIC)
 (AIC <- (-2*logLik(fit$model)+2*(w+q))/n)
 
-
 #Maximum likelihood estimate of the irregular variance
 (H <- fit$model$H)
 
 #Maximum likelihood estimate of the state disturbance variance 
 (Q <- fit$model$Q)
 
-#Maximum likelihood estimate of the initial value of the level at time point t=1
-(initVal <- coef(outKFS$model)[1,])
+#Smoothed estimates of states 
+smoothEstStat <- coef(outKFS$model)
 
-#Extracting residuals
-predResid <- rstandard(outKFS, "recursive") #One-step-ahead prediction residuals (standardised)
-irregResid <- rstandard(outKFS, "pearson") #Auxiliary irregular  residuals (standardised)
-levelResid <- rstandard(outKFS, "state") #Auxiliary level  residuals (standardised)
-#residuals(outKFS)
-#Diagnostic for one-step-ahead prediction residuals (standardised)
-qStat <- qStatistic(predResid, k, w)
-rStat <- rStatistic(predResid, d, l)
-hStat <- hStatistic(predResid, d)
-nStat <- nStatistic(predResid, d)
-dTable(qStat, rStat, hStat, nStat)
+#Initial values of the smoothed estimates of states
+(initSmoothEstStat <- smoothEstStat[1,])
+
+#Elasticity: percentage change in the number of UK drivers KSI due to the seat belt law
+(elast <- 100*(exp(smoothEstStat[1, 1])-1) %>% unname)
+
+#Figure 6.1. Deterministic level and intervention variable
+plot(dataUKdriversKSI, xlab = "", ylab = "", lty = 1)
+lines(smoothEstStat[, "level"] + smoothEstStat[1, "seatbeltLaw"] * seatbeltLaw, lty = 3)
+title(main = "Figure 6.1. Deterministic level and intervention variable", 
+      cex.main = 0.8)
+legend("topright",leg = c("log UK drivers KSI", "deterministic level + lambda*(SEATBELT LAW)"), 
+       cex = 0.5, lty = c(1, 3), horiz = T)
+
+#Figure 5.2. Conventional classical regression representation of deterministic level 
+#and intervention variable
+plot(seatbeltLaw, dataUKdriversKSI,  xlab = "", ylab = "", pch = 3, cex = 0.5, cex.lab = 0.8, cex.axis = 0.9)
+abline(a = smoothEstStat[1, "level"], b = smoothEstStat[1, "seatbeltLaw"], lty = 3)
+title(main = "Figure 5.2. Conventional classical regression representation of deterministic level and intervention variable", 
+      cex.main = 0.8)
+legend("topright",leg = c("log UK drivers KSI against log PETROL PRICE", "deterministic level + lambda*(SEATBELT LAW)"), 
+       cex = 0.5, lty = c(1, 3), horiz = T)
+
+#Auxiliary irregular residuals (non-standardised)
+irregResid <- residuals(outKFS, "pearson") 
+
+#Figure 5.3. Irregular  component for deterministic level model 
+#with intervention variable
+plot(irregResid  , xlab = "", ylab = "", lty = 2)
+abline(h = 0, lty = 1)
+title(main = "Figure 5.3. Irregular  component for deterministic level model with intervention variable",
+      cex.main = 0.8)
+legend("topleft",leg = "irregular",cex = 0.5, lty = 2, horiz = T)
+
+#One-step-ahead prediction residuals (standardised)
+#predResid <- rstandard(outKFS) 
 
 #6.2 Stochastic level and intervention variable####
 #Removing all objects except functions It does not work!!!
 rm(list = setdiff(ls(), lsf.str())) 
 
 #Loading data
-dataUKdriversKSI <- log(read.table("UKdriversKSI.txt"))
-dataUKdriversKSI <- ts(dataUKdriversKSI, start = 1969,frequency=12)
-#time <- seq(from=1, to=192)
+dataUKdriversKSI <- log(read.table("UKdriversKSI.txt")) %>% ts(start = 1969,frequency=12)
 seatbeltLaw <- as.numeric(rep(c(0, 1), times=c(169, 23))) #Intervention variable
 
 #Fitting model
 model <- SSModel(dataUKdriversKSI ~ SSMtrend(degree=1, Q=list(matrix(NA))) + SSMregression(~ seatbeltLaw, Q=matrix(0), P1=100, P1inf=0), H = matrix(NA))
-#ownupdatefn <- function(pars,model,...){
-#model$H[,,1] <- exp(pars[1])
-#model
-#}
-
-#Comment from Helske on GitHub: SSMregressionThis is because you are using a diffuse initialization for the regression coefficient state of the intervention variable. 
+#Non-exact difuse initialisation is used for the regression coefficient state of the intervention variable. 
 #The standardized residuals are not defined for the diffuse phase, which does not end before there is a change in the intervention variable, 
-#and thus you only have standardized residual estimates available after the intervention. I suggest that you switch to nondiffuse prior 
-#for the intervention variable, e.g.: SSMregression(~ seatbeltLaw, Q=matrix(0), P1 = 100, P1inf = 0)
+#and thus we only have standardized residual estimates available after the intervention. It is suggested to switch to non-exact diffuse prior 
+#for the intervention variable: SSMregression(~ seatbeltLaw, Q=matrix(0), P1 = 100, P1inf = 0)
 
+ownupdatefn <- function(pars,model){
+  model$H[,,1] <- exp(pars[1])
+  diag(model$Q[,,1]) <- c(0, exp(pars[2]))
+  model
+}
 
-fit <- fitSSM(model, inits = c(0.01, 0.01), method = "BFGS")
-outKFS <- KFS(fit$model, smoothing = c("state", "mean", "disturbance"))
-
-outKFS <- KFS(fit$model, smoothing = c("state", "mean", "disturbance"))
-#outKFS$v
-d <- 1 #Number of the elements of the initial state vector with exact di???use initialization
-q <- 2 #Number of the elements of the initial state vector with exact or non-exact di???use initialization
+d <- 1 #Number of the elements of the initial state vector with exact difuse initialization
+q <- 2 #Number of the elements of the initial state vector with  difuse initialization (exact or non-exact)
 w <- 2#Number of estimated hyperparameters (i.e. disturbance variances)
 l <- 12 #Autocorrelation at lag l to be provided by r-statistic / ACF function
 k <- 15#First k autocorrelations to be used in Q-statistic
 n <- 192 #Number of observations
-  
+
+#Fitting model
+#x <- initValOpt() #Finding best initial values for optim
+fit <- fitSSM(model, inits = log(rep(0.904, w)), updatefn = ownupdatefn, method = "L-BFGS-B")
+outKFS <- KFS(fit$model, smoothing = c("state", "mean", "disturbance"))
+
 #Maximum likelihood 
 (maxLik <- logLik(fit$model)/n)
 
 #Akaike information criterion (AIC)
 (AIC <- (-2*logLik(fit$model)+2*(w+q))/n)
-
 
 #Maximum likelihood estimate of the irregular variance
 (H <- fit$model$H)
@@ -1420,23 +1447,37 @@ n <- 192 #Number of observations
 #Maximum likelihood estimate of the state disturbance variance 
 (Q <- fit$model$Q)
 
-#Maximum likelihood estimate of the initial value of the level at time point t=1
-(initVal <- coef(outKFS$model)[1,])
+#Smoothed estimates of states 
+smoothEstStat <- coef(outKFS$model)
 
-#outKFS2$Finf
-#outKFS2 <- KFS(fit$model)
+#Initial values of the smoothed estimates of states
+(initSmoothEstStat <- smoothEstStat[1,])
 
-#Extracting residuals
-predResid <- rstandard(outKFS, "recursive") #One-step-ahead prediction residuals (standardised)
-irregResid <- rstandard(outKFS, "pearson") #Auxiliary irregular  residuals (standardised)
-levelResid <- rstandard(outKFS, "state") #Auxiliary level  residuals (standardised)
+#Elasticity: percentage change in the number of UK drivers KSI due to the seat belt law
+(elast <- 100*(exp(smoothEstStat[1, 1])-1) %>% unname)
 
-#Diagnostic for one-step-ahead prediction residuals (standardised)
-qStat <- qStatistic(predResid, k, w)
-rStat <- rStatistic(predResid, d, l)
-hStat <- hStatistic(predResid, d)
-nStat <- nStatistic(predResid, d)
-dTable(qStat, rStat, hStat, nStat)
+#Figure 6.4. Stochastic level and intervention variable
+plot(dataUKdriversKSI, xlab = "", ylab = "", lty = 1)
+lines(smoothEstStat[, "level"] + smoothEstStat[1, "seatbeltLaw"] * seatbeltLaw, lty = 3)
+title(main = "Figure 6.4. Stochastic level and intervention variable", 
+      cex.main = 0.8)
+legend("topright",leg = c("log UK drivers KSI", "stochastic level + lambda*(SEATBELT LAW)"), 
+       cex = 0.5, lty = c(1, 3), horiz = T)
+
+#Auxiliary irregular residuals (non-standardised)
+irregResid <- residuals(outKFS, "pearson") 
+
+#Figure 5.3. Irregular  component for stochastic level model 
+#with intervention variable
+plot(irregResid  , xlab = "", ylab = "", lty = 2)
+abline(h = 0, lty = 1)
+title(main = "Figure 5.3. Irregular  component for stochastic level model with intervention variable",
+      cex.main = 0.8)
+legend("topleft",leg = "irregular",cex = 0.5, lty = 2, horiz = T)
+
+#One-step-ahead prediction residuals (standardised)
+#predResid <- rstandard(outKFS) 
+
 
 #CHAPTER 7: The UK seatbelt and inflation models####
 
