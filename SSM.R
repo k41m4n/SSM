@@ -1766,7 +1766,7 @@ l <- 4 #Autocorrelation at lag l to be provided by r-statistic / ACF function
 k <- 10 #First k autocorrelations to be used in Q-statisticlogLik <- logLik( ) dlmLL(dataUKdriversKSI, mod)
 
 #Fitting model
-x <- initValOpt() #Finding best initial values for optim
+#x <- initValOpt() #Finding best initial values for optim
 x <- initValOpt(method = "Nelder-Mead") 
 
 #fit <- fitSSM(inits = rep(0.273, w), model = model, method = "L-BFGS-B") 
@@ -1788,6 +1788,7 @@ outKFS <- KFS(fit$model, smoothing = c("state", "mean", "disturbance"))
 
 #Smoothed estimates of states 
 smoothEstStat <- coef(outKFS$model)
+<<<<<<< HEAD
 
 #Initial values of the smoothed estimates of states
 #(initSmoothEstStat <- smoothEstStat[1,])
@@ -1795,6 +1796,15 @@ smoothEstStat <- coef(outKFS$model)
 #Auxiliary irregular residuals (non-standardised)
 irregResid <- residuals(outKFS, "pearson") 
 
+=======
+
+#Initial values of the smoothed estimates of states
+#(initSmoothEstStat <- smoothEstStat[1,])
+
+#Auxiliary irregular residuals (non-standardised)
+irregResid <- residuals(outKFS, "pearson") 
+
+>>>>>>> bd5d9eb4f505c8cab06225563e7444f9f34229a7
 #Figure 7.7 Local level (including pulse interventions), local seasonal and irregular in UK inflation time series data
 par(mfrow = c(3, 1), mar = c(2, 2, 2, 2))
 plot(dataUKinflation, xlab = "", ylab = "", lty = 1)
