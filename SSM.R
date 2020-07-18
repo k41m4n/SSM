@@ -1085,7 +1085,7 @@ abline(h = 0, lty = 3)
 legend("topleft",leg = "stochastic seasonal", 
        cex = 0.8, lty = 1, horiz = T)
 
-plot(irregResid  , xlab = "", ylab = "", lty = 1)
+plot(irregResid  , xlab = "", ylab = "", lty = 2)
 abline(h = 0, lty = 3)
 legend("topleft",leg = "irregular",cex = 0.8, lty = 2, horiz = T)
 par(mfrow=c(1, 1))
@@ -1565,6 +1565,9 @@ title(main="Figure 7.5. Correlogram of irregular component of completely determi
       cex.main=0.8)
 legend("topright",leg = "ACF - deterministic level and seasonal model residuals",cex = 0.5,lty = 1, col = "black",horiz = T)
 
+#Regression estimates with standard errors to calculate t-ratio (for point 7.3)
+outKFS 
+
 
 #7.2 Stochastic level and seasonal####
 
@@ -1728,8 +1731,10 @@ legend("topright",leg = "stochastic level and deterministic seasonal model resid
 #One-step-ahead prediction residuals (standardised)
 #predResid <- rstandard(outKFS) 
 
-#Estimates with standard errors 
-outKFS2 <- KFS(fit$model)
+#Regression estimates with standard errors to calculate t-ratio 
+outKFS 
+#(see point 7.1 for deterministic model)
+
 
 #7.4 The UK inflation model####
 
@@ -1737,68 +1742,87 @@ outKFS2 <- KFS(fit$model)
 rm(list = setdiff(ls(), lsf.str())) 
 
 #Loading data
-#dataUKdriversKSI <- log(read.table("UKdriversKSI.txt"))
-#dataUKdriversKSI <- ts(dataUKdriversKSI, start = 1969, frequency=12)
-
-dataUKinflation <- read.table("UKinflation.txt")
-dataUKinflation <- ts(dataUKinflation, start=1950, frequency=4)
+dataUKinflation <- read.table("UKinflation.txt") %>% ts(start=1950, frequency=4)
 
 n <- 208 #Number of observations
+pulse1 <- ts(rep(0, n), frequency=4, start=c(1950, 1)) # Pulse intervention variable 1
+pulse1[which(time(pulse1) == 1975.25)] <- 1  
+pulse2 <- ts(rep(0, n), frequency=4, start=c(1950, 1)) # Pulse intervention variable 2
+pulse2[which(time(pulse2) == 1979.50)] <- 1  
 
-pulse1 <- ts(rep(0, n), frequency=4, start=c(1950, 1)) 
-pulse1[which(time(pulse1) == 1975.25)] <- 1  # Pulse intervention variable 1
-pulse2 <- ts(rep(0, n), frequency=4, start=c(1950, 1)) 
-pulse2[which(time(pulse2) == 1979.50)] <- 1  # Pulse intervention variable 2
+#Defining model
+model <- SSModel(dataUKinflation ~ SSMregression(~ pulse1, Q = matrix(0), P1 = 100, P1inf = 0) + SSMregression(~ pulse2, Q = matrix(0), P1 = 100, P1inf = 0) + SSMtrend(degree = 1, Q = list(matrix(NA))) + SSMseasonal(period= 4, sea.type = 'dummy', Q = matrix(NA)),  H = matrix(NA))
 
-#Fitting model
-model <- SSModel(dataUKinflation ~ SSMregression(~ pulse1, Q=matrix(0), P1=100, P1inf=0) + SSMregression(~ pulse2, Q=matrix(0), P1=100, P1inf=0) + SSMtrend(degree=1, Q=list(matrix(NA))) + SSMseasonal(period=4, sea.type='dummy', Q=matrix(NA)),  H=matrix(NA))
-
-#ownupdatefn <- function(pars,model){
-  #model$H[,,1] <- exp(pars[1])
-  #diag(model$Q[,,1]) <- exp(c(pars[2], pars[3]))
-  #model
-#}
-
-fit <- fitSSM(inits = rep(0.001, 3), model = model, method = "L-BFGS-B") # It does not work with BFGS
-                                                                         
-
-outKFS <- KFS(fit$model, smoothing = c("state", "mean", "disturbance"))
-outKFS$model$Q
+ownupdatefn <- function(pars, model){
+  model$H[,, 1] <- exp(pars[1])
+  diag(model$Q[,, 1]) <- c(0, 0, exp(pars[2]), exp(pars[3]))
+  model
+}
 
 d <- 4 # #Number of exact diffuse initial values in the state
 q <- 6 #Number of diffuse initial values (exact and non-exact) in the state 
-w <- 3#Number of estimated hyperparameters (i.e. disturbance variances)
+w <- 3 #Number of estimated hyperparameters (i.e. disturbance variances)
 l <- 4 #Autocorrelation at lag l to be provided by r-statistic / ACF function
-k <- 10#First k autocorrelations to be used in Q-statisticlogLik <- logLik( ) dlmLL(dataUKdriversKSI, mod)
+k <- 10 #First k autocorrelations to be used in Q-statisticlogLik <- logLik( ) dlmLL(dataUKdriversKSI, mod)
 
+#Fitting model
+#x <- initValOpt() #Finding best initial values for optim
+fit <- fitSSM(inits = rep(0.273, w), model = model, method = "L-BFGS-B") 
+outKFS <- KFS(fit$model, smoothing = c("state", "mean", "disturbance"))
 
 #Maximum likelihood 
-(maxLik <- logLik(fit$model, method = "BFGS")/n)
+(maxLik <- logLik(fit$model)/n)
 
 #Akaike information criterion (AIC)
 (AIC <- (-2*logLik(fit$model)+2*(w+q))/n)
 
 #Maximum likelihood estimate of the irregular variance
-(H <- fit$model$H) 
+(H <- fit$model$H)
 
 #Maximum likelihood estimate of the state disturbance variance 
 (Q <- fit$model$Q)
 
-#Maximum likelihood estimate of the final values of the level and seasonal at time point t=208
-(finalVal <- coef(outKFS$model)[208,])
+#Smoothed estimates of states 
+smoothEstStat <- coef(outKFS$model)
 
-#Extracting residuals
-predResid <- rstandard(outKFS) #One-step-ahead prediction residuals (standardised)
-irregResid <- rstandard(outKFS, "pearson") #Auxiliary irregular  residuals (standardised)
-levelResid <- rstandard(outKFS, "state") #Auxiliary level  residuals (standardised)
+#Initial values of the smoothed estimates of states
+#(initSmoothEstStat <- smoothEstStat[1,])
 
+#Auxiliary irregular residuals (non-standardised)
+irregResid <- residuals(outKFS, "pearson") 
+
+#Figure 7.7 Local level (including pulse interventions), local seasonal and irregular in UK inflation time series data
+par(mfrow = c(3, 1), mar = c(2, 2, 2, 2))
+plot(dataUKinflation, xlab = "", ylab = "", lty = 1)
+lines(smoothEstStat[, "level"], lty = 3)
+title(main = "Figure 7.7. Local level (including pulse interventions), local seasonal and irregular in UK inflation time series data", 
+      cex.main = 1)
+legend("topleft",leg = c("quarterly price changes in UK", "stochastic level + pulse intervention variables"), 
+       cex = 0.8, lty = c(1, 3), horiz = T)
+
+plot(smoothEstStat[, "sea_dummy1"], xlab = "", ylab = "", lty = 1, ylim = c(-0.006, 0.008))
+abline(h = 0, lty = 3)
+legend("topleft",leg = "stochastic seasonal", 
+       cex = 0.8, lty = 1, horiz = T)
+
+plot(irregResid  , xlab = "", ylab = "", lty = 2)
+abline(h = 0, lty = 3)
+legend("topleft",leg = "irregular",cex = 0.8, lty = 2, horiz = T)
+par(mfrow=c(1, 1))
 
 #Diagnostic for one-step-ahead prediction residuals (standardised)
+predResid <- rstandard(outKFS) 
 qStat <- qStatistic(predResid, k, w)
 rStat <- rStatistic(predResid, d, l)
 hStat <- hStatistic(predResid, d)
 nStat <- nStatistic(predResid, d)
-dTable(qStat, rStat, hStat, nStat)
+
+#Table 7.3. Diagnostic tests for the local level and seasonal 
+#model incuding pulse intervention variables for UK inflation series
+title = "Table 4.3. Diagnostic tests for local level and seasonal model \nincuding pulse intervention variables for UK inflation series"
+dTable(qStat, rStat, hStat, nStat, title)
+
+
 
 #9.4 An illustration of multivariate state space analysis####
 
