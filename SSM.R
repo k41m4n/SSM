@@ -1088,7 +1088,7 @@ legend("topleft",leg = "stochastic seasonal",
 plot(irregResid  , xlab = "", ylab = "", lty = 2)
 abline(h = 0, lty = 3)
 legend("topleft",leg = "irregular",cex = 0.8, lty = 2, horiz = T)
-par(mfrow=c(1, 1))
+par(mfrow=c(1, 1), mar=c(5.1, 4.1, 4.1, 2.1))
 
 #Diagnostic for one-step-ahead prediction residuals (standardised)
 predResid <- rstandard(outKFS) 
@@ -1813,7 +1813,7 @@ legend("topleft",leg = "stochastic seasonal",
 plot(irregResid  , xlab = "", ylab = "", lty = 2)
 abline(h = 0, lty = 3)
 legend("topleft",leg = "irregular",cex = 0.8, lty = 2, horiz = T)
-par(mfrow=c(1, 1))
+par(mfrow=c(1, 1), mar=c(5.1, 4.1, 4.1, 2.1))
 
 #Diagnostic for one-step-ahead prediction residuals (standardised)
 predResid <- rstandard(outKFS) 
@@ -1827,140 +1827,248 @@ nStat <- nStatistic(predResid, d)
 title = "Table 4.3. Diagnostic tests for local level and seasonal model \nincuding pulse intervention variables for UK inflation series"
 dTable(qStat, rStat, hStat, nStat, title)
 
-
+#Multivariate time series analysis####
 
 #9.4 An illustration of multivariate state space analysis####
 
 #A) Model without rank restriction####
 
+#Removing all objects except functions
 rm(list = setdiff(ls(), lsf.str())) 
 
-UKfrontrearseatKSI <- read.table("UKfrontrearseatKSI.txt", head=TRUE)  
-data <- ts(UKfrontrearseatKSI[,2:3], start = 1969,frequency=12) #Two time series: front seat passengers killed or seriously injured and rear seat passengers killed or seriously injured
-
+#Loading data
 seatbeltLaw <- rep(c(0, 1), times=c(169, 23))  # Inroduction of the seat belt law  (intervention variable)
-X <- cbind(seatbeltLaw, UKfrontrearseatKSI[, c(5,4)])
-colnames(X)[2:3] <- c("petrolPrice", "kmDriven" )
-X <- ts(X, start = 1969,frequency=12)
+data <- read.table("UKfrontrearseatKSI.txt", header = TRUE)[-1] %>% 
+  cbind(., seatbeltLaw) %>%
+  ts(start = 1969,frequency=12) 
 
-model <- SSModel(data ~ kmDriven + petrolPrice + seatbeltLaw +
-                   SSMtrend(degree=1, Q=matrix(NA, 2, 2)) +
-                   SSMseasonal(period=12, sea.type='dummy'), H = matrix(NA, 2, 2), data=X)
+#Defining model
+model <- SSModel(cbind(frontseatKSI, rearseatKSI) ~ kmDriven + petrolPrice + 
+                   seatbeltLaw +
+                   SSMtrend(degree = 1, Q = matrix(NA, 2, 2)) +
+                   SSMseasonal(period = 12, sea.type = 'dummy'), H = matrix(NA, 2, 2), data = data)
 
-#model <- SSModel(data ~ SSMtrend(degree=1,  type="distinct", Q=matrix(NA, 2, 2)) +
-                   #SSMseasonal(period=12, sea.type='dummy') + kmDriven + petrolPrice + SSMregression(~ seatbeltLaw, P1=100, P1inf=0),
-                   #H = matrix(NA, 2, 2), data=X)
+#SSMregression(~ seatbeltLaw, Q = matrix(0), P1 = 100, P1inf = 0)
+
+ownupdatefn <- function(pars, model){
+  L1T <- diag(exp(pars[1:2])) # see explanationhttps://mc-stan.org/docs/2_18/reference-manual/covariance-matrices-1.html#fn16
+  L1T[upper.tri(L1T)] <- pars[3]
+  model["Q"] <- crossprod(L1T) #crossprod (X,Y) = t(X) %*% Y or crossprod (X) = t(X) %*% X
+  L2T <- diag(exp(pars[4:5]))
+  L2T[upper.tri(L2T)] <- pars[6]
+  model["H"] <- crossprod(L2T)
+  model
+}
+
+#d <- ?? # #Number of exact diffuse initial values in the state
+#q <- ?? #Number of diffuse initial values (exact and non-exact) in the state 
+w <- 6 #Number of estimated hyperparameters (i.e. disturbance variances)
+#l <- ?? #Autocorrelation at lag l to be provided by r-statistic / ACF function
+#k <- ?? #First k autocorrelations to be used in Q-statisticlogLik <- logLik( ) dlmLL(dataUKdriversKSI, mod)
+n <- 2*192 #Number of observations
+
+#Fitting model
+#x <- initValOpt2(method = "Nelder-Mead", formula = "c(log(x), log(x), x, log(x), log(x), x)")
+x <- 0.148
+fit <- fitSSM(inits = c(log(x), log(x), x, log(x), log(x), x), model = model, updatefn = ownupdatefn, method = "Nelder-Mead")
+outKFS <- KFS(fit$model, smoothing = c("state", "mean", "disturbance"))
 #All exact diffused explanatory variablea and intervention variable give good resutls
 # Please not that difussion ends after the intervention variable setbeltLaw changes from 0 to 1
 # This is gives very short time series of predictive residuals
 
+#Maximum likelihood 
+(maxLik <- logLik(fit$model)/n)
 
-ownupdatefn <- function(pars, model){
-  Q <- diag(exp(pars[1:2])) 
-  Q[upper.tri(Q)] <- pars[3]
-  model["Q"] <- crossprod(Q) #crossprod (X,Y) = t(X) %*% Y or crossprod (X) = t(X) %*% X
-  H <- diag(exp(pars[4:5]))
-  H[upper.tri(H)] <- pars[6]
-  model["H"] <- crossprod(H)
-  model
-}
-
-set.seed(123)
-for (j in 1:50)
-{
-  #x <- runif(6, 0.0000001, 0.5)
-  #fit <- fitSSM(inits = x, model = model, updatefn = ownupdatefn, method = "BFGS")
-  x <- round(runif(1, 0.0000001, 2),3)
-  fit <- fitSSM(inits = c(log(x), log(x), x, log(x), log(x), x), model = model, updatefn = ownupdatefn, method = "BFGS")
-  
-  
-  outKFS <- KFS(fit$model, smoothing = c("state", "mean", "disturbance"))
-  print(x)
-  print(logLik(fit$model))
-  
-  print(fit$model$Q)
-  levelResid <- residuals(outKFS, "state") #Auxiliary level  residuals (standardised)
-  plot(levelResid[, 1], levelResid[, 2])
-}
-
-init=0.133
-fit <- fitSSM(inits = c(log(init), log(init), init, log(init), log(init), init), model = model, method = "BFGS") # "Nelder-Mead", "BFGS", "CG", "L-BFGS-B", "SANN","Brent"
-outKFS <- KFS(fit$model, smoothing = c("state", "mean", "disturbance"))
+#Akaike information criterion (AIC)
+#(AIC <- (-2*logLik(fit$model)+2*(w+q))/n)
 
 #Maximum likelihood estimate of the irregular variance
-(H <- fit$model$H) 
+(H <- fit$model$H)
  
 #Maximum likelihood estimate of the state disturbance variance 
 (Q <- fit$model$Q)
 
-#Maximum likelihood
-(logLik(fit$model))
+#Smoothed estimates of states 
+smoothEstStat <- coef(outKFS$model)
+
+#Initial values of the smoothed estimates of states
+(initSmoothEstStat <- smoothEstStat[1,])
+
 
 #predResid <- rstandard(outKFS) #One-step-ahead prediction residuals (standardised)
 #irregResid <- rstandard(outKFS, "pearson") #Auxiliary irregular  residuals (standardised)
 
 #Figure 9.1 Log of monthly numbers of front seat passengers (top) and rear seat passangers (bottom)
 #killed or seriously injured in the UK in the period 1969-1984
-
-plot(data[, "Front.seats.KSI"], xlab= "", ylab = "", lty=1, ylim=c(5.4, 7.2))
-lines(data[, "Rear.seats.KSI"], lty=5)
+plot(data[, "frontseatKSI"], xlab= "", ylab = "", lty=1, ylim=c(5.4, 7.2))
+lines(data[, "rearseatKSI"], lty=5)
+title(main = "Figure 9.1. Log of monthly numbers of fron seat passengers (top) and rear seat passengers (bottom)\n killed or seriously injured in the UK in the period 1969-1984", 
+      cex.main = 0.8)
 legend("topright",leg = c("log(front seat KSI)", "log(rear seat KSI)"), 
        lty = c(1, 5), cex = 0.55, horiz=T)
  
+#Auxiliary level  residuals (standardised)
+levResid <- residuals(outKFS, "state") 
 
 #Figure 9.2 Level disturbances for rear seat (horizontal) versus front seat KSI (vertical)
 #in a seamingly unrelated model
 #Fit model before
-outKFS <- KFS(fit$model, smoothing = c("state", "mean", "disturbance")) #double? repeated
-levelResid <- residuals(outKFS, "state") #Auxiliary level  residuals (standardised)
-colnames(levelResid) <- c("Front.seats", "Rear.seats")
-plot(x=levelResid[,"Rear.seats"], y=levelResid[,"Front.seats"], xlab = "Level disturbances for rear seat KSI", ylab = "Level disturbance for front seat KSI")
 
-abline(abline(lm(levelResid[,"Front.seats"] ~ levelResid[,"Rear.seats"])))
-
+plot(x=levResid[,"rearseatKSI"], y=levResid[,"frontseatKSI"], xlab = "Level disturbances for rear seat KSI", ylab = "Level disturbance for front seat KSI",
+     pch = 3, cex = 0.5, cex.lab = 0.8, cex.axis = 0.9)
+abline(lm(levResid[,"frontseatKSI"] ~ levResid[,"rearseatKSI"]))
+abline(h = 0, lty = 3)
+title(main = "Figure 9.2 Level disturbances for rear seat (horizontal) versus front seat KSI (vertical) \nin a seamingly unrelated model", 
+      cex.main = 0.8) 
 legend("topleft",leg = c("Level disturbances rear against front seat KSI", "Regression line"), 
-       lty = c(NA, 1), pch=c(1, NA), cex = 0.55, horiz=T)
+       lty = c(NA, 1), pch=c(3, NA), cex = 0.55, horiz=T)
 
 #Figure 9.3 Levels of treatment and control series in the seemingly unrelated model
 #(levels of rear and front seat KSI)
 
-outKFS <- KFS(fit$model, smoothing = c("state", "mean", "disturbance"))
-levels <- outKFS$alphahat[, c("level.Front.seats.KSI", "level.Rear.seats.KSI")]
-
-par(mfrow=c(2,1))
-plot(levels[, "level.Front.seats.KSI"], xlab= "", ylab = "", lty=1)
+par(mfrow=c(2,1), mar=c(2.1, 4.1, 2.1, 2.1))
+plot(smoothEstStat[, "level.frontseatKSI"], xlab= "", ylab = "", lty=1)
+title(main = "Figure 9.3 Levels of treatment and control series in the seemingly unrelated model", 
+      cex.main = 0.8)
 legend("topright",leg = "level front", lty = 1, cex = 0.55, horiz=T)
-
-plot(levels[, "level.Rear.seats.KSI"], xlab= "", ylab = "",lty=1)
+plot(smoothEstStat[, "level.rearseatKSI"], xlab= "", ylab = "",lty=1)
 legend("topright",leg = "level rear", lty = 1, cex = 0.55, horiz=T)
-par(mfrow=c(1,1))
+par(mfrow=c(1,1), par(mar=c(5.1, 4.1, 4.1, 2.1)))
 
-#Figure 9.4 Level of control (rear seats) against level of treatment series (front seat) in the seemingly unrelated model
-
-plot(x=levels[, "level.Rear.seats.KSI"], y=levels[, "level.Front.seats.KSI"], xlab = "Level for rear seat KSI", ylab = "Level for front seat KSI")
-
-abline(abline(lm(levels[, "level.Front.seats.KSI"] ~ levels[, "level.Rear.seats.KSI"])))
-
+#Figure 9.4 Level of treatment against level of control series in the seemingly unrelated model
+plot(x=smoothEstStat[, "level.rearseatKSI"], y=smoothEstStat[, "level.frontseatKSI"], xlab = "Level for rear seat KSI", ylab = "Level for front seat KSI",
+     pch = 3, cex = 0.5, cex.lab = 0.8, cex.axis = 0.9)
+abline(lm(smoothEstStat[, "level.frontseatKSI"] ~ smoothEstStat[, "level.rearseatKSI"]))
+title(main = "Figure 9.4 Level of treatment against level of control series\nin the seemingly unrelated model", 
+      cex.main = 0.8)
 legend("topleft",leg = c("Level  rear against front seat KSI", "Regression line"), 
-       lty = c(NA, 1), pch=c(1, NA), cex = 0.55, horiz=T)
-
-
-
-plot(data$logUKdriversKSI, xlab="",ylab = "",pch=3, xlim=c(0,200))
-abline(coefs)
-legend("topright",leg = c("log UK drivers KSI against time", "regression line"), 
-       lty = c(NA, 1), pch=c(3,NA), cex = 0.55, horiz=T)
-
-
-
-coef(outKFS)
-
-abline(lm(levelResid[,1] ~ levelResid[,2]))
-
-plot(predResid)
+       lty = c(NA, 1), pch=c(3, NA), cex = 0.55, horiz=T)
 
 
 #B) Model with rank restriction####
+
+#Removing all objects except functions
+rm(list = setdiff(ls(), lsf.str())) 
+
+#Loading data
+seatbeltLaw <- rep(c(0, 1), times=c(169, 23))  # Inroduction of the seat belt law  (intervention variable)
+data <- read.table("UKfrontrearseatKSI.txt", header = TRUE)[-1] %>% 
+  cbind(., seatbeltLaw) %>%
+  ts(start = 1969,frequency=12) 
+
+#Defining model
+model <- SSModel(cbind(frontseatKSI, rearseatKSI) ~ kmDriven + petrolPrice + 
+                   SSMregression(~ seatbeltLaw, index = 1) +
+                   SSMtrend(degree = 1, Q = matrix(NA, 2, 2)) +
+                   SSMseasonal(period = 12, sea.type = 'dummy'), H = matrix(NA, 2, 2), data = data)
+
+#SSMregression(~ seatbeltLaw, Q = matrix(0), P1 = 100, P1inf = 0)
+
+ownupdatefn <- function(pars, model){
+  L1T <- diag(c(exp(pars[1]), 0)) # see explanationhttps://mc-stan.org/docs/2_18/reference-manual/covariance-matrices-1.html#fn16
+  L1T[upper.tri(L1T)] <- pars[2]
+  model["Q"] <- crossprod(L1T) #crossprod (X,Y) = t(X) %*% Y or crossprod (X) = t(X) %*% X
+  L2T <- diag(exp(pars[3:4]))
+  L2T[upper.tri(L2T)] <- pars[5]
+  model["H"] <- crossprod(L2T)
+  model
+}
+
+#d <- ?? # #Number of exact diffuse initial values in the state
+#q <- ?? #Number of diffuse initial values (exact and non-exact) in the state 
+w <- 5 #Number of estimated hyperparameters (i.e. disturbance variances)
+#l <- ?? #Autocorrelation at lag l to be provided by r-statistic / ACF function
+#k <- ?? #First k autocorrelations to be used in Q-statisticlogLik <- logLik( ) dlmLL(dataUKdriversKSI, mod)
+n <- 2*192 #Number of observations
+
+#Fitting model
+#x <- initValOpt2(method = "Nelder-Mead", formula = "c(log(x), log(x), x, log(x), log(x), x)")
+x <- 0.360
+fit <- fitSSM(inits = c(log(x), log(x), x, log(x), log(x), x), model = model, updatefn = ownupdatefn, method = "Nelder-Mead")
+outKFS <- KFS(fit$model, smoothing = c("state", "mean", "disturbance"))
+#All exact diffused explanatory variablea and intervention variable give good resutls
+# Please not that difussion ends after the intervention variable setbeltLaw changes from 0 to 1
+# This is gives very short time series of predictive residuals
+
+#Maximum likelihood 
+(maxLik <- logLik(fit$model)/n)
+
+#Akaike information criterion (AIC)
+#(AIC <- (-2*logLik(fit$model)+2*(w+q))/n)
+
+#Maximum likelihood estimate of the irregular variance
+(H <- fit$model$H)
+
+#Maximum likelihood estimate of the state disturbance variance 
+(Q <- fit$model$Q)
+
+#Smoothed estimates of states 
+smoothEstStat <- coef(outKFS$model)
+
+#Initial values of the smoothed estimates of states
+(initSmoothEstStat <- smoothEstStat[1,])
+
+
+#predResid <- rstandard(outKFS) #One-step-ahead prediction residuals (standardised)
+#irregResid <- rstandard(outKFS, "pearson") #Auxiliary irregular  residuals (standardised)
+
+#Auxiliary level  residuals (standardised)
+levResid <- residuals(outKFS, "state") 
+
+#Figure 9.5 Level disturbances for rear seat (horizontal) versus front seat KSI (vertical)
+#in a seamingly unrelated model
+plot(x=levResid[,"rearseatKSI"], y=levResid[,"frontseatKSI"], xlab = "Level disturbances for rear seat KSI", ylab = "Level disturbance for front seat KSI",
+     pch = 3, cex = 0.5, cex.lab = 0.8, cex.axis = 0.9)
+abline(lm(levResid[,"frontseatKSI"] ~ levResid[,"rearseatKSI"]))
+abline(h = 0, lty = 3)
+title(main = "Figure 9.5 Level disturbances for rear seat (horizontal) versus front seat KSI (vertical) \nin a seamingly unrelated model", 
+      cex.main = 0.8)
+legend("topleft",leg = c("Level disturbances rear against front seat KSI", "Regression line"), 
+       lty = c(NA, 1), pch=c(3, NA), cex = 0.55, horiz=T)
+
+#Figure 9.6 Level of treatment against level of control series in rank one model
+plot(x = smoothEstStat[, "level.rearseatKSI"], y = smoothEstStat[, "level.frontseatKSI"], xlab = "Level for rear seat KSI", ylab = "Level for front seat KSI",
+     pch = 3, cex = 0.5, cex.lab = 0.8, cex.axis = 0.9)
+abline(lm(smoothEstStat[, "level.frontseatKSI"] ~ smoothEstStat[, "level.rearseatKSI"]))
+title(main = "Figure 9.6 Level of treatment against level of control series\nin rank one model", 
+      cex.main = 0.8)
+legend("topleft",leg = c("Level  rear against front seat KSI", "Regression line"), 
+       lty = c(NA, 1), pch=c(3, NA), cex = 0.55, horiz=T)
+
+#Figure 9.7 Levels of treatment and control series in rank one model
+par(mfrow=c(2,1), mar=c(2.1, 4.1, 2.1, 2.1))
+plot(smoothEstStat[, "level.frontseatKSI"], xlab= "", ylab = "", lty=1)
+title(main = "Figure 9.7 Levels of treatment and control series in rank one model", 
+      cex.main = 0.8)
+legend("topright",leg = "level front", lty = 1, cex = 0.55, horiz=T)
+plot(smoothEstStat[, "level.rearseatKSI"], xlab= "", ylab = "",lty=1)
+legend("topright",leg = "level rear", lty = 1, cex = 0.55, horiz=T)
+par(mfrow=c(1,1), par(mar=c(5.1, 4.1, 4.1, 2.1)))
+
+#Figure 9.8 Level of treatment series plus intervention and level of control series, rank one model
+par(mfrow=c(2,1), mar=c(2.1, 4.1, 2.1, 2.1))
+plot(smoothEstStat[, "level.frontseatKSI"] + data[, "seatbeltLaw"]*smoothEstStat[, "seatbeltLaw.frontseatKSI"], xlab= "", ylab = "", lty=1)
+title(main = "Figure 9.8 Level of treatment series plus intervention and level of control series, \nrank one model", 
+      cex.main = 0.8)
+legend("topright",leg = "level front", lty = 1, cex = 0.55, horiz=T)
+plot(smoothEstStat[, "level.rearseatKSI"], xlab= "", ylab = "",lty=1)
+legend("topright",leg = "level rear", lty = 1, cex = 0.55, horiz=T)
+par(mfrow=c(1,1), par(mar=c(5.1, 4.1, 4.1, 2.1)))
+
+#Figure 9.9 Deterministic seasonal of treatment and control series, rank one model
+par(mfrow=c(2,1), mar=c(2.1, 4.1, 2.1, 2.1))
+plot(smoothEstStat[, "sea_dummy1.frontseatKSI"], xlab= "", ylab = "", lty=1)
+title(main = "Figure 9.9 Deterministic seasonal of treatment and control series, \nrank one model", 
+      cex.main = 0.8)
+legend("topright",leg = "seasonal front", lty = 1, cex = 0.55, horiz=T)
+plot(smoothEstStat[, "sea_dummy1.rearseatKSI"], xlab= "", ylab = "",lty=1)
+legend("topright",leg = "seasonal rear", lty = 1, cex = 0.55, horiz=T)
+par(mfrow=c(1,1), par(mar=c(5.1, 4.1, 4.1, 2.1)))
+
+
+#BOOK END####  ########################################################
+
+
 
 #Version 00 ####
 rm(list = setdiff(ls(), lsf.str())) 
