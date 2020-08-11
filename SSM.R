@@ -1853,50 +1853,15 @@ ownupdatefn <- function(pars,model,...){
   model
 }
 
-#d <- q <- 12 #Number of diffuse initial values in the state 
 w <- 2 #Number of estimated hyperparameters (i.e. disturbance variances)
-#l <- 12 #Autocorrelation at lag l to be provided by r-statistic / ACF function
-#k <- 15#First k autocorrelations to be used in Q-statistic
-n <- 192 #Number of observations
+#n <- 192 #Number of observations
 
 #Fitting model
-#x <- initValOpt()
 fit <- fitSSM(inits = log(rep(0.009, w)), model = model, updatefn = ownupdatefn, method = "Nelder-Mead")
 outKFS <- KFS(fit$model, smoothing = c("state", "mean", "disturbance"))
 
-
-
-#Maximum likelihood 
-#(maxLik <- logLik(fit$model, method = method)/n)
-
-#Akaike information criterion (AIC)
-#(AIC <- (-2*logLik(fit$model)+2*(w+q))/n)
-
-#Maximum likelihood estimate of the irregular variance
-#(H <- fit$model$H) 
-
-#Maximum likelihood estimate of the state disturbance variance 
-#(Q <- fit$model$Q)
-
-#Smoothed estimates of states (level and seasonal components)
-smoothEstStat <- coef(outKFS$model)
-
-#Initial values of the smoothed estimates of states
-(initSmoothEstStat <- smoothEstStat[1,])
-
-#Auxiliary irregular residuals (non-standardised)
-#irregResid <- residuals(outKFS, "pearson") 
-
-#One-step-ahead prediction residuals (standardised)
-#predResid <- rstandard(outKFS) 
-
-
-#Interesting! to be reviewed?
-outKFS$d #The last time index of diffuse phase, i.e.  the non-diffuse phase began at timed+ 1. 
-
 #Level estimation error variance
 levEstErVar <- outKFS$V[1, 1, ] %>% ts(start = 1969, frequency=12)
-outKFS$V[1, 1, ]
 
 #Figure 8.1. Level estimation error variance for stochastic level and deterministic seasonal model applied to the log of UK drivers KSI
 plot(levEstErVar, xlab = "", ylab = "", lty = 1)
@@ -1905,17 +1870,15 @@ title(main = "Figure 8.1. Level estimation error variance for stochastic level a
 legend("topright",leg = "level estimation error variance", 
        cex = 0.5, lty = 1, horiz = T)
 
-
-#Predict out (naming to be reviewed)
-outPredictLev <- predict(fit$model, states = "level", interval = "confidence", level = 0.90)
+#Stochastic level and sesoanl with their confidence intervals 
+outPredictLev <- predict(fit$model, states = "level", interval = "confidence", se.fit = TRUE, level = 0.90)
 outPredictSeas <- predict(fit$model, states = "seasonal", interval = "confidence", level = 0.90)
-outPredictSig <- predict(fit$model, states = "all", interval = "confidence", level = 0.90)
 
 #Figure 8.2. Stochastic level and its 90% confidence interval for stochastic level and deterministic seasonal model applied to the log of UK drivers KSI
 plot(dataUKdriversKSI, xlab = "", ylab = "", lty = 1)
-lines(pred[, "fit"], lty = 3)
-lines(pred[, "lwr"], lty = 3)
-lines(pred[, "upr"], lty = 3)
+lines(outPredictLev[, "fit"], lty = 3)
+lines(outPredictLev[, "lwr"], lty = 3)
+lines(outPredictLev[, "upr"], lty = 3)
 title(main = "Figure 8.2. Stochastic level and its 90% confidence interval for stochastic level \nand deterministic seasonal model applied to the log of UK drivers KSI", 
       cex.main = 0.8)
 legend("topright",leg = c("log UK drivers KSI", "stochastic level +/- 1.64SE"), 
@@ -1929,15 +1892,59 @@ title(main = "Figure 8.3. Deterministic seasonal and its 90% confidence interval
       cex.main = 0.8)
 legend("topright",leg = "deterministic seasonal +/- 1.64SE", 
        cex = 0.5, lty = 3, horiz = T)
+ 
+#8.4 Filtering and prediction####
 
-#Figure 8.4. Stochastic level plus deterministic seasonal and its 90% confidence interval for stochastic level and deterministic seasonal model applied to the log of UK drivers KSI
-plot(window(outPredictSeas[, "fit"], start = 1981), xlab = "", ylab = "", lty = 1, ylim = c(-0.2, 0.3))
-lines(window(outPredictSeas[, "lwr"], start = 1981), lty = 1)
-lines(window(outPredictSeas[, "upr"], start = 1981), lty = 1)
-title(main = "Figure 8.4. Stochastic level plus deterministic seasonal and its 90% confidence interval for stochastic level \nand deterministic seasonal model applied to the log of UK drivers KSI", 
+#Removing all objects except functions
+rm(list = setdiff(ls(), lsf.str())) 
+
+#Loading data
+dataNOfatalities <- log(read.table("NorwayFinland.txt")[,2]) %>% ts(start = 1970, frequency = 1)
+
+#Defining model
+model <- SSModel(dataNOfatalities ~ SSMtrend(degree = 1, Q = list(matrix(NA))), H = matrix(NA))
+ownupdatefn <- function(pars,model){
+  model$H[,,1] <- exp(pars[1])
+  model$Q[,,1] <- exp(pars[2])
+  model
+}
+
+#Fitting model and getting output
+#w <- 2
+#n <- 34
+#x <- initValOpt() 
+fit <- fitSSM(model, inits = log(c(0.01, 0.01)), updatefn = ownupdatefn, method = "Nelder-Mead")
+outKFS <- KFS(fit$model, filtering = "state", smoothing = "state")
+
+#Filtered and Smoothed estimates
+sigSmooth <- signal(outKFS, states = "all", filtered = FALSE)$signal
+sigFilt <- signal(outKFS, states = "all", filtered = TRUE)$signal %>% window(start = c(1970, 2))
+
+#Figure 8.5. Smoothed and filtered state of the local level model applied to Norwegian road traffic fatalities
+plot(sigSmooth, xlab = "", ylab = "", lty = 1, ylim = c(5.6, 6.4))
+lines(sigFilt, lty = 3)
+title(main = "Figure 8.5. Smoothed and filtered state of the local level model applied to Norwegian \nroad traffic fatalities", 
       cex.main = 0.8)
-legend("topright",leg = "signal +/- 1.64SE", 
-       cex = 0.5, lty = 1, horiz = T)
+legend("topright",leg = c("smoothed level", "filtered level"),
+       cex = 0.6, lty = c(1, 3), horiz = T)
+
+#One ahead prediction errors with their variances
+predResid <- rstandard(outKFS)
+predErVar <- outKFS$F[1,-1] %>% ts(start = c(1970, 2), frequency = 1)
+
+#Figure 8.7 One-step-ahead prediction errors (top) and their variances (bottom) for the 
+#local level model applied to Norwegian road traffic fatalities
+# Check y scale in the first figure not the same as in the book!!!
+par(mfrow = c(2, 1), mar = c(2, 2, 2, 2))
+plot(predResid, xlab = "", ylab = "", lty = 3, ylim = c(-2, 2.5))
+abline(h = 0, lty = 1)
+title(main = "Figure 8.7 One-step-ahead prediction errors (top) and their variances (bottom) for \nthe local level model applied to Norwegian road traffic fatalities", 
+      cex.main = 0.8)
+legend("topright",leg = "predictions errors", cex = 0.6, lty = 3, horiz = T)
+plot(predErVar, xlab = "", ylab = "", lty = 3)
+legend("topright",leg = "prediction error variance", 
+       cex = 0.6, lty = 3, horiz = T)
+par(mfrow=c(1, 1), mar=c(5.1, 4.1, 4.1, 2.1))
 
 
 
