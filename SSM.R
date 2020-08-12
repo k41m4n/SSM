@@ -2082,6 +2082,49 @@ legend("topright",leg = "Outlier t-test",
 par(mfrow=c(1, 1), mar=c(5.1, 4.1, 4.1, 2.1))
 
 
+#8.6. Forecasting
+
+#A) Norwegian fatalities
+
+#Removing all objects except functions
+rm(list = setdiff(ls(), lsf.str())) 
+
+#Loading data
+dataNOfatalities <- log(read.table("NorwayFinland.txt")[,2]) %>% ts(start = 1970, frequency = 1)
+
+#Defining model
+model <- SSModel(dataNOfatalities ~ SSMtrend(degree = 1, Q = list(matrix(NA))), H = matrix(NA))
+ownupdatefn <- function(pars,model){
+  model$H[,,1] <- exp(pars[1])
+  model$Q[,,1] <- exp(pars[2])
+  model
+}
+
+#Fitting model and getting output
+fit <- fitSSM(model, inits = log(c(0.01, 0.01)), updatefn = ownupdatefn, method = "Nelder-Mead")
+outKFS <- KFS(fit$model, filtering = "state", smoothing = "state")
+
+#Forecast
+outPredict1 <- predict(fit$model, states = "all", interval = "confidence", 
+                      level = 0.90, filtered = TRUE) %>% window(start = 1971)
+outPredict2 <- predict(fit$model, states = "all", interval = "confidence", 
+                      level = 0.90, n.ahead = 5)
+outPredict <- rbind(outPredict1, outPredict2) %>% 
+  ts(start = start(outPredict1), frequency = frequency(outPredict1))
+
+#Figure 8.13 Filtered level and five year forecast for Norwegian fatalities, 
+#including theri 90% confidence interval
+ts.plot(outPredict, lty = c(3, 2, 2), xlab = "")
+lines(dataNOfatalities)
+title(main = "Figure 8.13 Filtered level and five year forecast for Norwegian fatalities, including theri 90% confidence interval", 
+      cex.main = 0.8)
+legend("topright",leg = c("log fatalities in Norway", "filtered level and forecasts"), cex = 0.6, lty = c(1, 3), horiz = T)
+
+
+                     
+
+
+
 #9. Multivariate time series analysis####
 
 #9.4 An illustration of multivariate state space analysis####
