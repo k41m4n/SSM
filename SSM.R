@@ -1694,7 +1694,7 @@ n <- 192 #Number of observations
 
 #Fitting model
 #x <- initValOpt() #Finding best initial values for optim
-fit <- fitSSM(model, inits = log(rep(1.124, w)), updatefn = ownupdatefn, method = "L-BFGS-B")
+fit <- fitSSM(model, inits = log(rep(0.036, w)), updatefn = ownupdatefn, method = "Nelder-Mead")
 outKFS <- KFS(fit$model, smoothing = c("state", "mean", "disturbance"))
 
 #Maximum likelihood 
@@ -1910,9 +1910,6 @@ ownupdatefn <- function(pars,model){
 }
 
 #Fitting model and getting output
-#w <- 2
-#n <- 34
-#x <- initValOpt() 
 fit <- fitSSM(model, inits = log(c(0.01, 0.01)), updatefn = ownupdatefn, method = "Nelder-Mead")
 outKFS <- KFS(fit$model, filtering = "state", smoothing = "state")
 
@@ -1928,15 +1925,15 @@ title(main = "Figure 8.5. Smoothed and filtered state of the local level model a
 legend("topright",leg = c("smoothed level", "filtered level"),
        cex = 0.6, lty = c(1, 3), horiz = T)
 
-#One ahead prediction errors with their variances
-predResid <- rstandard(outKFS)
+#One ahead prediction errors (non-standardised) with their variances 
+predResid <- residuals(outKFS) %>% window(start = c(1970, 2))
 predErVar <- outKFS$F[1,-1] %>% ts(start = c(1970, 2), frequency = 1)
 
 #Figure 8.7 One-step-ahead prediction errors (top) and their variances (bottom) for the 
 #local level model applied to Norwegian road traffic fatalities
 # Check y scale in the first figure not the same as in the book!!!
 par(mfrow = c(2, 1), mar = c(2, 2, 2, 2))
-plot(predResid, xlab = "", ylab = "", lty = 3, ylim = c(-2, 2.5))
+plot(predResid, xlab = "", ylab = "", lty = 3)
 abline(h = 0, lty = 1)
 title(main = "Figure 8.7 One-step-ahead prediction errors (top) and their variances (bottom) for \nthe local level model applied to Norwegian road traffic fatalities", 
       cex.main = 0.8)
@@ -1946,6 +1943,143 @@ legend("topright",leg = "prediction error variance",
        cex = 0.6, lty = 3, horiz = T)
 par(mfrow=c(1, 1), mar=c(5.1, 4.1, 4.1, 2.1))
 
+
+#8.5 Diagnostic tests####
+
+#A) Tests for Section 7.3####
+#Removing all objects except functions
+rm(list = setdiff(ls(), lsf.str())) 
+
+#Loading data
+dataUKdriversKSI <- log(read.table("UKdriversKSI.txt")) %>% ts(start = 1969, frequency=12)
+petrolPrices <- read.table("logUKpetrolprice.txt")[,1] #Explanatory variable
+seatbeltLaw <- as.numeric(rep(c(0, 1), times=c(169, 23)))  #Intervention variable
+
+#Defining model
+model <- SSModel(dataUKdriversKSI ~ SSMregression(~ petrolPrices, Q = matrix(0)) + SSMregression(~ seatbeltLaw, Q=matrix(0), P1 = 100, P1inf = 0) + SSMtrend(1, Q = NA) + SSMseasonal(12, sea.type ='dummy', Q = 0),  H = NA)
+ownupdatefn <- function(pars, model){
+  model$H[,, 1] <- exp(pars[1])
+  diag(model$Q[,, 1]) <- c(0, 0, exp(pars[2]), 0)
+  model
+}
+
+#Fitting model
+w <- 2#Number of estimated hyperparameters (i.e. disturbance variances)
+fit <- fitSSM(model, inits = log(rep(0.036, w)), updatefn = ownupdatefn, method = "Nelder-Mead")
+outKFS <- KFS(fit$model, smoothing = c("state", "mean", "disturbance"))
+
+#Residuals
+predResid <- rstandard(outKFS) #One-step prediction residuals
+
+#Figure 8.8 Standardised one-step prediction errors of model in Section 7.3
+plot(predResid, xlab = "", ylab = "", lty = 3, ylim = c(-2, 2.5))
+abline(h = 0, lty = 1)
+title(main = "Figure 8.8 Standardised one-step prediction errors of model in Section 7.3", 
+      cex.main = 0.8)
+legend("topright",leg = "standardised one-step predictions errors", cex = 0.6, lty = 3, horiz = T)
+
+#Figure 8.9. Correlogram of standardised one-step prediction errors in Figure 8.8, first 10 lags
+Acf(predResid, 10, main = "", ylab = "")
+title(main="Figure 8.9. Correlogram of standardised one-step prediction errors in Figure 8.8, first 10 lags", 
+      cex.main=0.8)
+legend("topright",leg = "ACF - standardised one-step predicition errors",cex = 0.5,lty = 1, col = "black",horiz = T)
+
+#Figure 8.10. Histogram of standardised one-step prediction errors in Figure 8.8
+hist(predResid, 
+     breaks = seq(-3.5, 3.5, 0.5), 
+     main = "Figure 8.10. Histogram of standardised one-step prediction errors in Figure 8.8", 
+     cex.main = 0.8,
+     xlab = "", ylab = "",
+     prob = TRUE)
+legend("topleft",leg = "N(s = 1)",cex = 0.6, lty = 3, horiz = T)
+predResidNum <- predResid %>% as.numeric() %>% na.omit()
+curve(dnorm(x, mean=mean(predResidNum), sd=sd(predResidNum)), add=TRUE, lty = 3) 
+
+#B) Tests for Section 4.3####
+#Removing all objects except functions
+rm(list = setdiff(ls(), lsf.str())) 
+
+#Loading data
+dataUKdriversKSI <- log(read.table("UKdriversKSI.txt")) %>% ts(start = 1969, frequency=12)
+
+#Defining model
+model <- SSModel(dataUKdriversKSI ~ SSMtrend(degree=1, Q=list(matrix(NA))) + SSMseasonal(12, sea.type='dummy', Q=matrix(0)),  H=matrix(NA))
+
+ownupdatefn <- function(pars,model,...){
+  model$H[,,1] <- exp(pars[1])
+  diag(model$Q[,,1]) <- c(exp(pars[2]), 0)
+  model
+}
+
+#Fitting model
+w <- 2 #Number of estimated hyperparameters (i.e. disturbance variances)
+fit <- fitSSM(inits = log(rep(0.936, w)), model = model, updatefn = ownupdatefn, method = "Nelder-Mead")
+outKFS <- KFS(fit$model, smoothing = c("state", "mean", "disturbance"))
+
+#Residuals
+irregResid <- rstandard(outKFS, "pearson") #Auxiliary irregular  residuals (standardised)
+levelResid <- rstandard(outKFS, "state")[, 1] #Auxiliary level  residuals (standardised)
+
+#Figure 8.11. Standardised smoothed level disturbances (top) and standardised
+#smoothed observation disturbances (bottom) for analysis of UK drivers KSI
+#in Section 4.3
+par(mfrow = c(2, 1), mar = c(2, 2, 2, 2))
+plot(levelResid, xlab = "", ylab = "", lty = 3, ylim = c(-4, 3))
+abline(h = 0, lty = 1)
+abline(h = c(-2, 2), lty = 2)
+title(main = "Figure 8.11. Standardised smoothed level disturbances (top) and standardised smoothed observation disturbances \n(bottom) for analysis of UK drivers KSI in Section 4.3", 
+      cex.main = 0.8)
+legend("topleft",leg = "Structural level break t-test", cex = 0.6, lty = 3, horiz = T)
+plot(irregResid, xlab = "", ylab = "", lty = 3)
+abline(h = 0, lty = 1)
+abline(h = c(-2, 2), lty = 2)
+legend("topleft",leg = "Outlier t-test", 
+       cex = 0.6, lty = 3, horiz = T)
+par(mfrow=c(1, 1), mar=c(5.1, 4.1, 4.1, 2.1))
+
+#C) Tests for Section 7.3####
+
+#Removing all objects except functions
+rm(list = setdiff(ls(), lsf.str())) 
+
+#Loading data
+dataUKdriversKSI <- log(read.table("UKdriversKSI.txt")) %>% ts(start = 1969, frequency=12)
+petrolPrices <- read.table("logUKpetrolprice.txt")[,1] #Explanatory variable
+seatbeltLaw <- as.numeric(rep(c(0, 1), times=c(169, 23)))  #Intervention variable
+
+#Defining model
+model <- SSModel(dataUKdriversKSI ~ SSMregression(~ petrolPrices, Q = matrix(0)) + SSMregression(~ seatbeltLaw, Q=matrix(0), P1 = 100, P1inf = 0) + SSMtrend(1, Q = NA) + SSMseasonal(12, sea.type ='dummy', Q = 0),  H = NA)
+ownupdatefn <- function(pars, model){
+  model$H[,, 1] <- exp(pars[1])
+  diag(model$Q[,, 1]) <- c(0, 0, exp(pars[2]), 0)
+  model
+}
+
+#Fitting model
+w <- 2#Number of estimated hyperparameters (i.e. disturbance variances)
+fit <- fitSSM(model, inits = log(rep(0.036, w)), updatefn = ownupdatefn, method = "Nelder-Mead")
+outKFS <- KFS(fit$model, smoothing = c("state", "mean", "disturbance"))
+
+#Residuals
+irregResid <- rstandard(outKFS, "pearson") #Auxiliary irregular  residuals (standardised)
+levelResid <- rstandard(outKFS, "state")[, "level"] #Auxiliary level  residuals (standardised)
+
+#Figure 8.11. Standardised smoothed level disturbances (top) and standardised
+#smoothed observation disturbances (bottom) for analysis of UK drivers KSI
+#in Section 7.3
+par(mfrow = c(2, 1), mar = c(2, 2, 2, 2))
+plot(levelResid, xlab = "", ylab = "", lty = 3, ylim = c(-4, 3))
+abline(h = 0, lty = 1)
+abline(h = c(-2, 2), lty = 2)
+title(main = "Figure 8.11. Standardised smoothed level disturbances (top) and standardised smoothed observation disturbances \n(bottom) for analysis of UK drivers KSI in Section 7.3", 
+      cex.main = 0.8)
+legend("topright",leg = "Structural level break t-test", cex = 0.6, lty = 3, horiz = T)
+plot(irregResid, xlab = "", ylab = "", lty = 3)
+abline(h = 0, lty = 1)
+abline(h = c(-2, 2), lty = 2)
+legend("topright",leg = "Outlier t-test", 
+       cex = 0.6, lty = 3, horiz = T)
+par(mfrow=c(1, 1), mar=c(5.1, 4.1, 4.1, 2.1))
 
 
 #9. Multivariate time series analysis####
