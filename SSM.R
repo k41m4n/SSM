@@ -167,38 +167,40 @@ cat(    sprintf(      paste(diagnosticTemplateTable, collapse = "\n"),
 initValOpt <- function(w_ = w , model_ = model, updatefn_ = ownupdatefn, method = "Nelder-Mead", maxLoop = 100){
   results  <- matrix(NA, maxLoop, 2) %>% 
     data.frame() %>%
-    `colnames<-`(c("Initial.value", "Log.likelihood"))
+    `colnames<-`(c("Log.likelihood", "Initial.value"))
   #set.seed(123)
   cat("Loop: ")
   for (j in 1:maxLoop){
     cat(paste(j, " "))
     x <- runif(1, min = 0.00001, max = 2) %>% round(3)
     fit <- fitSSM(inits = log(rep(x, w_)), model = model_, updatefn = updatefn_, method = method)
-    maxLik <- logLik(fit$model, method = method)/n
-    results[j, ] <- c(x, maxLik)
+    maxLik <- (logLik(fit$model, method = method)/n) %>% round(7)
+    #results[j, ] <- c(round(maxLik, 7), x)
+    results[j, ] <- c(maxLik, x)
   }     
   cat("\n")
-  results %>% arrange(desc(Log.likelihood)) %>% arrange(Initial.value) %>% print()
-  return(results[1,1])
+  results %>% arrange(desc(Log.likelihood), Initial.value) %>% print()
+  return(results[1,2])
 }
+#desc(Log.likelihood)
 
 #Function to find best initial values for optim ver. 2
 initValOpt2 <- function(formula = "log(rep(x, 3))", model_ = model, updatefn_ = ownupdatefn, method = "Nelder-Mead", maxLoop = 100){
   results  <- matrix(NA, maxLoop, 2) %>% 
     data.frame() %>%
-    `colnames<-`(c("Initial.value", "Log.likelihood"))
+    `colnames<-`(c("Log.likelihood", "Initial.value"))
   #set.seed(123)
   cat("Loop: ")
   for (j in 1:maxLoop){
     cat(paste(j, ""))
     x <- runif(1, min = 0.00001, max = 2) %>% round(3)
     fit <- fitSSM(inits = eval(parse(text = formula)), model = model_, updatefn = updatefn_, method = method)
-    maxLik <- logLik(fit$model, method = method)/n
-    results[j, ] <- c(x, maxLik)
+    maxLik <- (logLik(fit$model, method = method)/n) %>% round(7)
+    results[j, ] <- c(maxLik, x)
   }     
   cat("\n")
-  results %>% arrange(desc(Log.likelihood)) %>% arrange(Initial.value) %>% print()
-  return(results[1,1])
+  results %>% arrange(desc(Log.likelihood), Initial.value) %>% print()
+  return(results[1,2])
 }
 
 
@@ -684,7 +686,8 @@ k <- 10#First k autocorrelations to be used in Q-statistic
 n <- 34 #Number of observations
 
 #Fitting model and getting output
-fit <- fitSSM(model, inits = log(c(0.001, 0.001, 0.001)), updatefn = ownupdatefn, method = "L-BFGS-B")
+#x <- initValOpt()
+fit <- fitSSM(model, inits = log(c(0.021, 0.021, 0.021)), updatefn = ownupdatefn, method = "Nelder-Mead")
 outKFS <- KFS(fit$model, smoothing = c("state", "mean", "disturbance"))
 
 #Maximum likelihood 
@@ -732,7 +735,8 @@ k <- 10#First k autocorrelations to be used in Q-statistic
 n <- 34 #Number of observations
 
 #Fitting model and getting output
-fit <- fitSSM(model, inits = log(c(0.001, 0.001)), updatefn = ownupdatefn, method = "L-BFGS-B")
+#x <- initValOpt()
+fit <- fitSSM(model, inits = log(c(0.059, 0.059)), updatefn = ownupdatefn, method = "L-BFGS-B")
 outKFS <- KFS(fit$model, smoothing = c("state", "mean", "disturbance"))
 
 #Maximum likelihood 
@@ -2082,9 +2086,9 @@ legend("topright",leg = "Outlier t-test",
 par(mfrow=c(1, 1), mar=c(5.1, 4.1, 4.1, 2.1))
 
 
-#8.6. Forecasting
+#8.6. Forecasting####
 
-#A) Norwegian fatalities
+#A) Norwegian fatalities####
 
 #Removing all objects except functions
 rm(list = setdiff(ls(), lsf.str())) 
@@ -2116,12 +2120,230 @@ outPredict <- rbind(outPredict1, outPredict2) %>%
 #including theri 90% confidence interval
 ts.plot(outPredict, lty = c(3, 2, 2), xlab = "")
 lines(dataNOfatalities)
-title(main = "Figure 8.13 Filtered level and five year forecast for Norwegian fatalities, including theri 90% confidence interval", 
+title(main = "Figure 8.13 Filtered level and five year forecast for Norwegian fatalities, including their 90% confidence interval", 
       cex.main = 0.8)
 legend("topright",leg = c("log fatalities in Norway", "filtered level and forecasts"), cex = 0.6, lty = c(1, 3), horiz = T)
 
+#B) Finnish fatalities####
 
-                     
+#Removing all objects except functions
+rm(list = setdiff(ls(), lsf.str())) 
+
+#Loading data
+dataFIfatalities <- log(read.table("NorwayFinland.txt")[,3]) %>% ts(start = 1970, frequency = 1)
+
+#Defining model
+model <- SSModel(dataFIfatalities ~ SSMtrend(degree = 2, Q = list(matrix(0), matrix(NA))),  H = matrix(NA))
+ownupdatefn <- function(pars, model){
+  model$H[,,1] <- exp(pars[1])
+  diag(model$Q[,,1]) <- c(0, exp(pars[2]))
+  model
+}
+
+#Fitting model and getting output
+fit <- fitSSM(model, inits = log(c(0.059, 0.059)), updatefn = ownupdatefn, method = "L-BFGS-B")
+outKFS <- KFS(fit$model, smoothing = c("state", "mean", "disturbance"))
+
+#Forecast
+outPredict1 <- predict(fit$model, states = "all", interval = "confidence", 
+                       level = 0.90, filtered = TRUE) %>% window(start = 1972)
+outPredict2 <- predict(fit$model, states = "all", interval = "confidence", 
+                       level = 0.90, n.ahead = 5)
+outPredict <- rbind(outPredict1, outPredict2) %>% 
+  ts(start = start(outPredict1), frequency = frequency(outPredict1))
+
+#Figure 8.14 Filtered level and five year forecast for Finnish fatalities, 
+#including theri 90% confidence interval
+ts.plot(outPredict, lty = c(3, 2, 2), xlab = "")
+lines(dataFIfatalities)
+title(main = "Figure 8.14 Filtered level and five year forecast for Finnish fatalities, including their 90% confidence interval", 
+      cex.main = 0.8)
+legend("topright",leg = c("log fatalities in Finland", "filtered level and forecasts"), cex = 0.6, lty = c(1, 3), horiz = T)
+
+#C) UK fatalities####
+# C1) UK fatalities up to February 1983 - stochastic level + stochastic seasonal + explanatory variable####
+
+#Removing all objects except functions
+rm(list = setdiff(ls(), lsf.str())) 
+
+#Loading data
+dataUKdriversKSI169 <- log(read.table("UKdriversKSI.txt")) %>% 
+  ts(start = 1969, frequency=12) %>% 
+  window(end = c(1983, 1))
+petrolPrices169 <- read.table("logUKpetrolprice.txt")[1:169, 1]  #Explanatory variable
+
+#Defining model
+model <- SSModel(dataUKdriversKSI169 ~ petrolPrices169 + SSMtrend(1, Q = list(matrix(NA))) + SSMseasonal(12, sea.type ='dummy', Q = matrix(NA)),  H = matrix(NA))
+
+ownupdatefn <- function(pars, model){
+  model$H[,, 1] <- exp(pars[1])
+  diag(model$Q[,, 1]) <- c(exp(pars[2:3]))
+  model
+}
+
+w <- 3 #Number of estimated hyperparameters (i.e. disturbance variances)
+q <- 13 #Number of the elements of the initial state vector with  difuse initialization (exact or non-exact)
+n <- 169 #Number of observations
+
+#Fitting model
+#x <- initValOpt() #Finding best initial values for optim
+fit <- fitSSM(model, inits = log(rep(0.029, w)), updatefn = ownupdatefn, method = "Nelder-Mead")
+
+#Maximum likelihood 
+(maxLik <- logLik(fit$model)/n)
+
+#Akaike information criterion (AIC)
+(AIC <- (-2*logLik(fit$model)+2*(w+q))/n)
+
+
+# C2) UK fatalities up to February 1983 - stochastic level + deterministic seasonal + explanatory variable####
+
+#Removing all objects except functions
+rm(list = setdiff(ls(), lsf.str())) 
+
+#Loading data
+dataUKdriversKSI169 <- log(read.table("UKdriversKSI.txt")) %>% 
+  ts(start = 1969, frequency=12) %>% 
+  window(end = c(1983, 1))
+petrolPrices169 <- read.table("logUKpetrolprice.txt")[1:169, 1]  #Explanatory variable
+
+#Defining model
+model <- SSModel(dataUKdriversKSI169 ~ petrolPrices169 + SSMtrend(1, Q = list(matrix(NA))) + SSMseasonal(12, sea.type ='dummy', Q = matrix(NA)),  H = matrix(NA))
+
+ownupdatefn <- function(pars, model){
+  model$H[,, 1] <- exp(pars[1])
+  diag(model$Q[,, 1]) <- c(exp(pars[2]), 0)
+  model
+}
+
+w <- 2 #Number of estimated hyperparameters (i.e. disturbance variances)
+q <- 13 #Number of the elements of the initial state vector with  difuse initialization (exact or non-exact)
+n <- 169 #Number of observations
+
+#Fitting model
+#x <- initValOpt() #Finding best initial values for optim
+fit <- fitSSM(model, inits = log(rep(0.004, w)), updatefn = ownupdatefn, method = "Nelder-Mead")
+fit$model$H[1, 1, 1]
+
+#Maximum likelihood 
+(maxLik <- logLik(fit$model)/n)
+
+#Akaike information criterion (AIC)
+(AIC <- (-2*logLik(fit$model)+2*(w+q))/n)
+
+dataUKdriversKSI23 <- rep(NA, 23) %>% 
+  ts(start = c(1983, 2), frequency=12)
+petrolPrices23 <- read.table("logUKpetrolprice.txt")[170:192, 1]  #Explanatory variable
+
+newData <- SSModel(dataUKdriversKSI23 ~ petrolPrices23 + SSMtrend(1, Q = list(matrix(fit$model$Q[1, 1, 1]))) + SSMseasonal(12, sea.type ='dummy', Q = matrix(0)),  H = matrix(fit$model$H[1, 1, 1]))
+
+
+outPredict1B <- predict(fit$model, newdata = newData, states = "all", interval = "confidence", 
+                         level = 0.90)
+
+#Figure 8.15 Forecasts for t=170,..., 192 including their 90% confidence interval 
+plot(outPredict1B[, "fit"], lty = 1, xlab = "", ylab = "", ylim = c(7.1, 7.8), xaxt = "n", xlim = c(1983, 1985))
+lines(outPredict1B[, 2], lty = 3)
+lines(outPredict1B[, 3], lt  = 3)
+title(main = "Figure 8.14 Filtered level and five year forecast for Finnish fatalities, including their 90% confidence interval", 
+      cex.main = 0.8)
+legend("topright",leg = "forecasts +/- 1.64SE", cex = 0.6, lty = 1, horiz = T)
+axis(1, c("1983", "1984", "1985"))
+
+outPredict1A <- predict(fit$model, states = "all", interval = "confidence", 
+                        level = 0.90)
+outPredict1 <- rbind(outPredict1A, outPredict1B) %>% 
+  ts(start = start(outPredict1A), frequency = frequency(outPredict1A)) %>%
+  window(start = 1982)
+
+
+
+
+#Loading data
+dataUKdriversKSI <- log(read.table("UKdriversKSI.txt")) %>% 
+  ts(start = 1969, frequency=12)
+petrolPrices <- read.table("logUKpetrolprice.txt")[, 1]  #Explanatory variable
+
+#Defining model
+model <- SSModel(dataUKdriversKSI ~ petrolPrices + SSMtrend(1, Q = list(matrix(NA))) + SSMseasonal(12, sea.type ='dummy', Q = matrix(NA)),  H = matrix(NA))
+
+ownupdatefn <- function(pars, model){
+  model$H[,, 1] <- exp(pars[1])
+  diag(model$Q[,, 1]) <- c(exp(pars[2]), 0)
+  model
+}
+
+w <- 2 #Number of estimated hyperparameters (i.e. disturbance variances)
+
+#Fitting model
+#x <- initValOpt() #Finding best initial values for optim
+fit <- fitSSM(model, inits = log(rep(0.021, w)), updatefn = ownupdatefn, method = "Nelder-Mead")
+outPredict2 <- predict(fit$model, states = "all", interval = "confidence", 
+                        level = 0.90) %>% window(start = c(1982))
+
+plot(window(dataUKdriversKSI, start = c(1982)))
+lines(outPredict1[, 1], lty = 3)
+lines(outPredict2[, 1], lty = 2)
+###########################
+
+ts.plot(outPredictNew)
+outPredictX <- predict(fit$model, newdata = newData, states = "all", interval = "confidence", 
+                       level = 0.90, filtered = TRUE)
+
+
+#Removing all objects except functions
+rm(list = setdiff(ls(), lsf.str())) 
+
+#Loading data
+dataUKdriversKSI <- log(read.table("UKdriversKSI.txt")) %>% ts(start = 1969, frequency=12)
+petrolPrices <- read.table("logUKpetrolprice.txt")[,1]  #Explanatory variable
+seatbeltLaw <- as.numeric(rep(c(0, 1), times=c(169, 23)))  #Intervention variable
+
+#Defining model
+#model <- SSModel(dataUKdriversKSI ~ SSMregression(~ petrolPrices, Q = matrix(0)) + SSMregression(~ seatbeltLaw, Q=matrix(0), P1 = 100, P1inf = 0) + SSMtrend(1, Q = NA) + SSMseasonal(12, sea.type ='dummy', Q = 0),  H = NA)
+#model <- SSModel(dataUKdriversKSI ~ SSMtrend(degree=1, Q=list(matrix(0))) + SSMregression(~ petrolPrices, Q=matrix(0)), H = matrix(NA))
+#model <- SSModel(dataUKdriversKSI ~ SSMregression(~ petrolPrices, Q = matrix(0)) + SSMtrend(1, Q = list(matrix(NA))) + SSMseasonal(12, sea.type ='dummy', Q = matrix(0)),  H = matrix(NA))
+model <- SSModel(dataUKdriversKSI ~ petrolPrices + SSMtrend(1, Q = list(matrix(NA))) + SSMseasonal(12, sea.type ='dummy', Q = matrix(0)),  H = matrix(NA))
+
+ownupdatefn <- function(pars, model){
+  model$H[,, 1] <- exp(pars[1])
+  diag(model$Q[,, 1]) <- c(exp(pars[2]), 0)
+  model
+}
+
+#Fitting model
+w <- 2#Number of estimated hyperparameters (i.e. disturbance variances)
+n <- 192 #Number of observations
+#x <- initValOpt() #Finding best initial values for optim
+fit <- fitSSM(model, inits = log(rep(0.030, w)), updatefn = ownupdatefn, method = "Nelder-Mead")
+outKFS <- KFS(fit$model, smoothing = c("state", "mean", "disturbance"))
+
+out <- KFS(fit$model, smoothing = "signal")
+#Forecast
+outPredict1 <- predict(out$model, states = "all", interval = "confidence", 
+                       level = 0.90, filtered = TRUE) %>% window(start = c(1982, 2))
+outPredict2 <- predict(fit$model, states = "all", interval = "confidence", 
+                       level = 0.90, n.ahead = 23)
+outPredict <- rbind(outPredict1, outPredict2) %>% 
+  ts(start = start(outPredict1), frequency = frequency(outPredict1))
+
+signal(outKFS)
+
+dataUKdriversKSINew <- rep(NA, 23) %>% ts(start = 1985, frequency = 12)
+petrolPricesNew <- rep(0, 23)
+newData <- SSModel(dataUKdriversKSINew ~ petrolPricesNew + SSMtrend(1, Q = list(matrix(0))) + SSMseasonal(12, sea.type ='dummy', Q = matrix(0)),  H = matrix(0))
+
+outPredictX <- predict(fit$model, newdata = newData, states = "all", interval = "confidence", 
+                       level = 0.90, filtered = TRUE)
+
+ts.plot(outPredictX)
+#Figure 8.14 Filtered level and five year forecast for Finnish fatalities, 
+#including theri 90% confidence interval
+ts.plot(outPredict, lty = c(3, 2, 2), xlab = "")
+lines(dataFIfatalities)
+title(main = "Figure 8.14 Filtered level and five year forecast for Finnish fatalities, including their 90% confidence interval", 
+      cex.main = 0.8)
+legend("topright",leg = c("log fatalities in Finland", "filtered level and forecasts"), cex = 0.6, lty = c(1, 3), horiz = T)
 
 
 
