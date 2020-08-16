@@ -2173,7 +2173,7 @@ dataUKdriversKSI169 <- log(read.table("UKdriversKSI.txt")) %>%
 petrolPrices169 <- read.table("logUKpetrolprice.txt")[1:169, 1]  #Explanatory variable
 
 #Defining model
-model <- SSModel(dataUKdriversKSI169 ~ petrolPrices169 + SSMtrend(1, Q = list(matrix(NA))) + SSMseasonal(12, sea.type ='dummy', Q = matrix(NA)),  H = matrix(NA))
+model169 <- SSModel(dataUKdriversKSI169 ~ petrolPrices169 + SSMtrend(1, Q = list(matrix(NA))) + SSMseasonal(12, sea.type ='dummy', Q = matrix(NA)),  H = matrix(NA))
 
 ownupdatefn <- function(pars, model){
   model$H[,, 1] <- exp(pars[1])
@@ -2187,13 +2187,13 @@ n <- 169 #Number of observations
 
 #Fitting model
 #x <- initValOpt() #Finding best initial values for optim
-fit <- fitSSM(model, inits = log(rep(0.029, w)), updatefn = ownupdatefn, method = "Nelder-Mead")
+fit169 <- fitSSM(model169, inits = log(rep(0.029, w)), updatefn = ownupdatefn, method = "Nelder-Mead")
 
 #Maximum likelihood 
-(maxLik <- logLik(fit$model)/n)
+(maxLik169 <- logLik(fit169$model)/n)
 
 #Akaike information criterion (AIC)
-(AIC <- (-2*logLik(fit$model)+2*(w+q))/n)
+(AIC169 <- (-2*logLik(fit169$model)+2*(w+q))/n)
 
 
 # C2) UK fatalities up to February 1983 - stochastic level + deterministic seasonal + explanatory variable####
@@ -2208,7 +2208,7 @@ dataUKdriversKSI169 <- log(read.table("UKdriversKSI.txt")) %>%
 petrolPrices169 <- read.table("logUKpetrolprice.txt")[1:169, 1]  #Explanatory variable
 
 #Defining model
-model <- SSModel(dataUKdriversKSI169 ~ petrolPrices169 + SSMtrend(1, Q = list(matrix(NA))) + SSMseasonal(12, sea.type ='dummy', Q = matrix(NA)),  H = matrix(NA))
+model169 <- SSModel(dataUKdriversKSI169 ~ petrolPrices169 + SSMtrend(1, Q = list(matrix(NA))) + SSMseasonal(12, sea.type ='dummy', Q = matrix(0)),  H = matrix(NA))
 
 ownupdatefn <- function(pars, model){
   model$H[,, 1] <- exp(pars[1])
@@ -2222,24 +2222,23 @@ n <- 169 #Number of observations
 
 #Fitting model
 #x <- initValOpt() #Finding best initial values for optim
-fit <- fitSSM(model, inits = log(rep(0.004, w)), updatefn = ownupdatefn, method = "Nelder-Mead")
-fit$model$H[1, 1, 1]
+fit169 <- fitSSM(model169, inits = log(rep(0.004, w)), updatefn = ownupdatefn, method = "Nelder-Mead")
 
 #Maximum likelihood 
-(maxLik <- logLik(fit$model)/n)
+(maxLik169 <- logLik(fit169$model)/n)
 
 #Akaike information criterion (AIC)
-(AIC <- (-2*logLik(fit$model)+2*(w+q))/n)
+(AIC169 <- (-2*logLik(fit169$model)+2*(w+q))/n)
 
 dataUKdriversKSI23 <- rep(NA, 23) %>% 
   ts(start = c(1983, 2), frequency=12)
 petrolPrices23 <- read.table("logUKpetrolprice.txt")[170:192, 1]  #Explanatory variable
 
-newData <- SSModel(dataUKdriversKSI23 ~ petrolPrices23 + SSMtrend(1, Q = list(matrix(fit$model$Q[1, 1, 1]))) + SSMseasonal(12, sea.type ='dummy', Q = matrix(0)),  H = matrix(fit$model$H[1, 1, 1]))
+newData23 <- SSModel(dataUKdriversKSI23 ~ petrolPrices23 + SSMtrend(1, Q = list(matrix(fit169$model$Q[1, 1, 1]))) + SSMseasonal(12, sea.type ='dummy', Q = matrix(0)),  H = matrix(fit169$model$H[1, 1, 1]))
 
 
-outPredict1B <- predict(fit$model, newdata = newData, states = "all", interval = "confidence", 
-                         level = 0.90)
+outPredict1B <- predict(fit169$model, newdata = newData23, states = "all", interval = "prediction", 
+                         level = 0.90) #Authors seem to use prediction interval in the book
 
 #Figure 8.15 Forecasts for t=170,..., 192 including their 90% confidence interval 
 plot(outPredict1B[, "fit"], lty = 1, xlab = "", ylab = "", ylim = c(7.1, 7.8), xaxt = "n", xlim = c(1983, 1985))
@@ -2250,22 +2249,21 @@ title(main = "Figure 8.14 Filtered level and five year forecast for Finnish fata
 legend("topright",leg = "forecasts +/- 1.64SE", cex = 0.6, lty = 1, horiz = T)
 axis(1, c("1983", "1984", "1985"))
 
-outPredict1A <- predict(fit$model, states = "all", interval = "confidence", 
-                        level = 0.90)
+outPredict1A <- predict(fit169$model, states = "all", interval = "prediction", 
+                        level = 0.90, filtered = FALSE)
 outPredict1 <- rbind(outPredict1A, outPredict1B) %>% 
   ts(start = start(outPredict1A), frequency = frequency(outPredict1A)) %>%
-  window(start = 1982)
-
-
+  window(start = c(1981, 12))
 
 
 #Loading data
 dataUKdriversKSI <- log(read.table("UKdriversKSI.txt")) %>% 
   ts(start = 1969, frequency=12)
-petrolPrices <- read.table("logUKpetrolprice.txt")[, 1]  #Explanatory variable
+seatbeltLaw <- as.numeric(rep(c(0, 1), times=c(169, 23)))  #Intervention variable
+ptrolPrices <- read.table("logUKpetrolprice.txt")[, 1]  #Explanatory variable
 
 #Defining model
-model <- SSModel(dataUKdriversKSI ~ petrolPrices + SSMtrend(1, Q = list(matrix(NA))) + SSMseasonal(12, sea.type ='dummy', Q = matrix(NA)),  H = matrix(NA))
+model <- SSModel(dataUKdriversKSI ~ petrolPrices + SSMregression(~ seatbeltLaw, P1 = 100, P1inf = 0) + SSMtrend(1, Q = list(matrix(NA))) + SSMseasonal(12, sea.type ='dummy', Q = matrix(NA)),  H = matrix(NA))
 
 ownupdatefn <- function(pars, model){
   model$H[,, 1] <- exp(pars[1])
@@ -2276,14 +2274,16 @@ ownupdatefn <- function(pars, model){
 w <- 2 #Number of estimated hyperparameters (i.e. disturbance variances)
 
 #Fitting model
-#x <- initValOpt() #Finding best initial values for optim
-fit <- fitSSM(model, inits = log(rep(0.021, w)), updatefn = ownupdatefn, method = "Nelder-Mead")
-outPredict2 <- predict(fit$model, states = "all", interval = "confidence", 
-                        level = 0.90) %>% window(start = c(1982))
+x <- initValOpt() #Finding best initial values for optim
+fit <- fitSSM(model, inits = log(rep(0.016, w)), updatefn = ownupdatefn, method = "Nelder-Mead")
+outPredict2 <- predict(fit$model, states = "all", interval = "prediction", 
+                        level = 0.90) %>% window(start = c(1981, 12), filtered = FALSE)
 
-plot(window(dataUKdriversKSI, start = c(1982)))
+plot(window(dataUKdriversKSI, start = c(1981, 12)), xaxt = "n")
 lines(outPredict1[, 1], lty = 3)
 lines(outPredict2[, 1], lty = 2)
+axis(1, c("1982", "1983", "1984", "1985"))
+
 ###########################
 
 ts.plot(outPredictNew)
