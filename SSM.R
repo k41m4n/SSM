@@ -2278,10 +2278,16 @@ x <- initValOpt() #Finding best initial values for optim
 fit <- fitSSM(model, inits = log(rep(0.016, w)), updatefn = ownupdatefn, method = "Nelder-Mead")
 outPredict2 <- predict(fit$model, states = "all", interval = "prediction", 
                         level = 0.90) %>% window(start = c(1981, 12), filtered = FALSE)
-
+#Figure 8.16 Last four years (1981-1984 in the time series of the log of numbers
+#of drivers KSI: observed series, forecasts obtained from the analysis up to February 1983, 
+#and modelled development for the complete series including an intervention variable for February 1983",
 plot(window(dataUKdriversKSI, start = c(1981, 12)), xaxt = "n")
 lines(outPredict1[, 1], lty = 3)
 lines(outPredict2[, 1], lty = 2)
+title(main = "Figure 8.16 Last four years (1981-1984 in the time series of the log of numbers\n of drivers KSI: observed series, forecasts obtained from the analysis up to February 1983, \n and modelled development for the complete series including an intervention variable for February 1983",
+      cex.main = 0.8)
+legend("topright",leg = c("log UK drivers KSI", "signal + forecast", "signal complete model"), 
+       cex = 0.6, lty = c(1, 3, 2), horiz = T)
 axis(1, c("1982", "1983", "1984", "1985"))
 
 ###########################
