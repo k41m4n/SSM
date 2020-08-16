@@ -2281,7 +2281,7 @@ outPredict2 <- predict(fit$model, states = "all", interval = "prediction",
 #Figure 8.16 Last four years (1981-1984 in the time series of the log of numbers
 #of drivers KSI: observed series, forecasts obtained from the analysis up to February 1983, 
 #and modelled development for the complete series including an intervention variable for February 1983",
-plot(window(dataUKdriversKSI, start = c(1981, 12)), xaxt = "n")
+plot(window(dataUKdriversKSI, start = c(1981, 12)), xaxt = "n", xlab = "", ylab = "")
 lines(outPredict1[, 1], lty = 3)
 lines(outPredict2[, 1], lty = 2)
 title(main = "Figure 8.16 Last four years (1981-1984 in the time series of the log of numbers\n of drivers KSI: observed series, forecasts obtained from the analysis up to February 1983, \n and modelled development for the complete series including an intervention variable for February 1983",
