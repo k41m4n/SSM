@@ -3,7 +3,7 @@ This repository provides code in R reproducing examples of the states space mode
 
 ![](Figures/CKbook.png)
 
-The repository uses extensively the [package KFAS](https://cran.r-project.org/web/packages/KFAS/index.html) of Jouni Helske which includes computationally efficient functions for Kalman filtering, smoothing,forecasting, and simulation of multivariate exponential family state space models. Additionally, some own functions has been created to facilitate the calculation and presentation of diagnostics.
+The repository uses extensively the [package KFAS](https://cran.r-project.org/web/packages/KFAS/index.html) of Jouni Helske which includes computationally efficient functions for Kalman filtering, smoothing, forecasting, and simulation of multivariate exponential family state space models. Additionally, some own functions has been created to facilitate the calculation and presentation of diagnostics.
 
 The code is provided in file "SSM.R"" and split into sections corresponding to the following parts of the book:
 
@@ -21,7 +21,7 @@ In R Studio, each section of the code can be executed with keys CTRL+ALT+T, afte
 
 Below, the code of the stochastic level and slope model of chapter 3 is shown as an example.
 
-Loading data on the UK drivers killed or seriously injured (KSI):
+Loading data on UK drivers killed or seriously injured (KSI):
 
 ``` r
 dataUKdriversKSI <- log(read.table("UKdriversKSI.txt")) %>% 
@@ -88,7 +88,7 @@ Providing the number of observations:
 n <- 192
 ```
 
-Fitting the model using function `fitSSM` and extracting the output using function `KFS` of the KFAS package:
+Fitting the model using function `fitSSM()` and extracting the output using function `KFS` of the KFAS package:
 
 ``` r
 fit <- fitSSM(model, inits = log(c(0.001, 0001, 0001)), method = "BFGS")
@@ -176,7 +176,7 @@ legend("topleft",leg = "stochastic slope",
 
 ![](Figures/unnamed-chunk-17-1.png)
 
-Extracting auxiliary irregular residuals (non-standardised) using function `residuals` of the KFAS package:
+Extracting auxiliary irregular residuals (non-standardised) using function `residuals()` of the KFAS package:
 
 ``` r
 irregResid <- residuals(outKFS, "pearson") 
@@ -193,7 +193,7 @@ legend("topright",leg = "irregular",cex = 0.5, lty = 2, horiz = T)
 
 ![](Figures/unnamed-chunk-19-1.png)
 
-Extracting one-step-ahead prediction residuals (standardised) using function `rstandard()` of the KFAS package and calculating diagnostic for these residuals using own defined functions `qStatistic`, `rStatistic`, `hStatistic` and `nStatistic`:
+Extracting one-step-ahead prediction residuals (standardised) using function `rstandard()` of the KFAS package and calculating diagnostic for these residuals using own defined functions `qStatistic()`, `rStatistic()`, `hStatistic()` and `nStatistic()`:
 
 ``` r
 predResid <- rstandard(outKFS) 
@@ -203,7 +203,7 @@ hStat <- hStatistic(predResid, d)
 nStat <- nStatistic(predResid, d)
 ```
 
-Showing Table 3.2 Diagnostic tests for the local linear trend model applied to the log of the UK drivers KSI using own defined function `dTable`:
+Showing Table 3.2 Diagnostic tests for the local linear trend model applied to the log of the UK drivers KSI using own defined function `dTable()`:
 
 ``` r
 title = "Table 3.2 Diagnostic tests for the local linear trend model applied to \n
