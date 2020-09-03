@@ -5,7 +5,7 @@ This repository provides code in R reproducing examples of the states space mode
 
 The repository uses extensively the [KFAS package](https://cran.r-project.org/web/packages/KFAS/index.html) of Jouni Helske which includes computationally efficient functions for Kalman filtering, smoothing, forecasting, and simulation of multivariate exponential family state space models. Additionally, some own functions has been created to facilitate the calculation and presentation of diagnostics.
 
-The code is provided in file "SSM.R"" and split into sections corresponding to the following parts of the book:
+The code is provided in file "SSM.R" and split into sections corresponding to the following parts of the book:
 
 -   Introduction
 -   Chapter 2 The Local Level Model
