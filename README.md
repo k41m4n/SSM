@@ -26,7 +26,7 @@ dataUKdriversKSI <- log(read.table("UKdriversKSI.txt")) %>%
   ts(start = 1969, frequency = 12)
 ```
 
-Defining model:
+Defining the model:
 
 ``` r
 model <- SSModel(dataUKdriversKSI ~ SSMtrend(degree = 2, 
@@ -86,14 +86,14 @@ Providing the number of observations:
 n <- 192
 ```
 
-Fitting model:
+Fitting the model:
 
 ``` r
 fit <- fitSSM(model, inits = log(c(0.001, 0001, 0001)), method = "BFGS")
 outKFS <- KFS(fit$model, smoothing = c("state", "mean", "disturbance"))
 ```
 
-Extracting the aaximum likelihood:
+Extracting the maximum likelihood:
 
 ``` r
 (maxLik <- logLik(fit$model)/n)
@@ -137,7 +137,7 @@ smoothEstStat <- coef(outKFS)
 #> 7.4157359290 0.0002893677
 ```
 
-Extracting the values for the trend (stochastic level + slope):
+Extracting the values for trend (stochastic level + slope):
 
 ``` r
 trend <-signal(outKFS, states = "trend")$signal
@@ -174,7 +174,7 @@ legend("topleft",leg = "stochastic slope",
 
 ![](Figures/unnamed-chunk-17-1.png)
 
-Extracting the auxiliary irregular residuals (non-standardised):
+Extracting auxiliary irregular residuals (non-standardised):
 
 ``` r
 irregResid <- residuals(outKFS, "pearson") 
@@ -204,9 +204,11 @@ nStat <- nStatistic(predResid, d)
 Showing Table 3.2 Diagnostic tests for the local linear trend model applied to the log of the UK drivers KSI:
 
 ``` r
-title = "Table 3.2 Diagnostic tests for the local linear trend model applied to \nthe log of the UK drivers KSI"
+title = "Table 3.2 Diagnostic tests for the local linear trend model applied to \n
+the log of the UK drivers KSI"
 dTable(qStat, rStat, hStat, nStat, title)
 #> Table 3.2 Diagnostic tests for the local linear trend model applied to 
+#> 
 #> the log of the UK drivers KSI
 #> -----------------------------------------------------------------------------
 #>                     statistic    value   critical value   asumption satisfied

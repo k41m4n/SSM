@@ -237,7 +237,7 @@ dataUKdriversKSI <- log(read.table("UKdriversKSI.txt")) %>%
   ts(start = 1969, frequency = 12)
 ```
 
-Defining model:
+Defining the model:
 ```{r message=FALSE, warning=FALSE}
 model <- SSModel(dataUKdriversKSI ~ SSMtrend(degree = 2, 
          Q = list(matrix(NA), matrix(NA))),  H = matrix(NA))
@@ -273,13 +273,13 @@ Providing the number of observations:
 n <- 192
 ```
 
-Fitting model:
+Fitting the model:
 ```{r message=FALSE, warning=FALSE}
 fit <- fitSSM(model, inits = log(c(0.001, 0001, 0001)), method = "BFGS")
 outKFS <- KFS(fit$model, smoothing = c("state", "mean", "disturbance"))
 ```
 
-Extracting the aaximum likelihood: 
+Extracting the maximum likelihood: 
 ```{r message=FALSE, warning=FALSE}
 (maxLik <- logLik(fit$model)/n)
 ```
@@ -305,7 +305,7 @@ smoothEstStat <- coef(outKFS)
 (initSmoothEstStat <- smoothEstStat[1,])
 ```
 
-Extracting the values for the trend (stochastic level + slope):
+Extracting the values for trend (stochastic level + slope):
 ```{r message=FALSE, warning=FALSE}
 trend <-signal(outKFS, states = "trend")$signal
 head(trend, 24)
@@ -330,7 +330,7 @@ legend("topleft",leg = "stochastic slope",
 
 ```
 
-Extracting the auxiliary irregular residuals (non-standardised):
+Extracting auxiliary irregular residuals (non-standardised):
 ```{r message=FALSE, warning=FALSE}
 irregResid <- residuals(outKFS, "pearson") 
 ```
@@ -355,7 +355,8 @@ nStat <- nStatistic(predResid, d)
 
 Showing Table 3.2 Diagnostic tests for the local linear trend model applied to the log of the UK drivers KSI:
 ```{r message=FALSE, warning=FALSE}
-title = "Table 3.2 Diagnostic tests for the local linear trend model applied to \nthe log of the UK drivers KSI"
+title = "Table 3.2 Diagnostic tests for the local linear trend model applied to \n
+the log of the UK drivers KSI"
 dTable(qStat, rStat, hStat, nStat, title)
 ```
 
