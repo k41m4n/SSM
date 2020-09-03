@@ -1,0 +1,363 @@
+---
+output:
+  github_document
+---
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  fig.path = "Figures/",
+  comment = "#>",
+  collapse = TRUE
+  )
+library(knitr)
+
+
+
+```
+This repository  provides code in R reproducing examples of the states space models presented in book ["An Introduction to State Space Time Series Analysis"](http://www.ssfpack.com/CKbook.html) by Jacques J.F. Commandeur and Siem Jan Koopman. 
+ 
+![](Figures/cover.jpg)
+
+The code is provided in file "SSM.R"" and split into sections coresponding to the following parts of the book:
+
+* Introduction
+* Chapter 2 	The Local Level Model
+* Chapter 3 	The Local Linear Trend Model
+* Chapter 4 	The Local Level Model with Seasonal
+* Chapter 5 	The Local Level Model with Explanatory Variable
+* Chapter 6 	The Local Level Model with Intervention Variable
+* Chapter 7 	The UK Seat Belt and Inflation Models
+* Chapter 8 	General Treatment of Univariate State Space Models
+* Chapter 9 	Multivariate Time Series Analysis 
+
+In R Studio, each section of the code can be executed with keys CTRL+ALT+T, after placing a coursor in that section. Please make sure to execute the first section of the code including all the functions that are used by the other sections of the code.
+
+```{r message=FALSE, warning=FALSE, echo=FALSE}
+if(!(require(normtest))){install.packages('normtest')}
+library(normtest)
+if(!(require(KFAS))){install.packages('KFAS')}
+library(KFAS)
+#if(!(require(rstudioapi))){install.packages('rstudioapi')}
+#library(rstudioapi)
+if(!(require(knitr))){install.packages('knitr')}
+library(knitr)
+if(!(require(eurostat))){install.packages('eurostat')}
+library(eurostat)
+if(!(require(dplyr))){install.packages('dplyr')}
+library(dplyr)
+if(!(require(forecast))){install.packages('forecast')}
+library(forecast)
+
+#Cleaning workspace
+rm(list=ls())
+#Setting directory for files with data; they should be in the same directory as the files of source code
+#current_path = rstudioapi::getActiveDocumentContext()$path 
+#setwd(dirname(current_path))
+#print(getwd())
+
+
+#Function for Q-statistic
+#Q-statistic is a general omnibus test that can be used to check whether 
+#the combined first k autocorrelations significantly deviate from 0,
+#meaning the null hypothesis of independence must be rejected
+#We assume that the residuals are independent if the test statistic does not exceed the critical value.
+qStatistic <- function(predResid, k, w) {
+  #Standardised residuals as predResid should be submitted into this function!
+  #k - first k autocorrelations to be used in test; w - number of the disturbance variances
+  #(see Commandeur and Koopman, p.90-96)
+  value <- Box.test(predResid, lag = k, type = "Ljung")$statistic #Q-statistic based on the statistic calulated in the Ljung-Box test for lags from 1 to k
+  criticalValue <- qchisq(0.95, k-w+1) #Critical value corresponding to the upper 5% in the chi-square-distribution with k-w+1 degrees of freedom
+  list(#List of values provided by the function
+    k = k, #First k autocorrelations
+    value = unname(value), #Value of the test statistic
+    criticalValue = criticalValue #Critical value
+  )
+}
+
+#Function for r-statistic
+#r-statistic checks independence of one-step-ahead prediction residuals 
+#It provides values of the autocorrelations at lags 1 and l, together with the 95% confidence limits. 
+#We assume that the residuals are independent if the values of the autocorrelations 
+#do not exceed the critical values for the 95% confidence limits 
+#(see Commandeur and Koopman, p.90-96)
+rStatistic <- function(predResid, d, l) {
+  #Standardised residuals as predResid should be submitted into this function!
+  #d - diffuse initial value of the state, l - autocorrelation at lag l to be provided by the function
+  n <- (length(predResid)-d) #Length of the series after subtracting d, the number of diffuse initial elements of the state
+  acfValues <- acf(predResid[-(1:d)], plot = FALSE)$acf[-1]# List of the values of the autocorrelations for the series without the first d values
+  criticalValue <- 2 / sqrt(n) # +/- critical value for the 95% confidence limits
+  list( #List of values provided by the function
+    l = c(1,l), #lags 1 and l 
+    value1 = acfValues[1], #Value of the autocorrelation at lag 1
+    value2 = acfValues[l], #Value of the autocorrelation at lag l
+    criticalValue = criticalValue # +/- critical value for 95% confidence limits
+  )
+}
+
+#Function for H-statistic
+#H-statistic checks homoscedasticity of one-step-ahead prediction residuals 
+#This is done by testing the null hypothesis of the equal variances of the residuals 
+#in the first third part of the series and the last third part of the series.
+#The ratio between these two variances is tested against an F-distribution with (h,h) degrees of freedom 
+#applying the usual 5% rule for rejection of the null hypothesis of equal variances, for a two-tailed test.  
+#We must find critical values corresponding to the upper and lower 2.5% in the two tails of the F-distribution;
+#If, however, the tested statistic is larger than or equal to 1, it is enough to check 
+#whether it is lower than the critical value #corresponding to the upper 2.5% in the F-distribution; 
+#On the other hand, if the statistic is lower than 1 we have to test 
+#if its reciprocal value (1/ratio) is lower than the above-mentioned critical value.
+#We assume that the residuals are homoscedastic if the test statistic does not exceed the critical value.
+#(see Commandeur and Koopman, p.90-96)
+hStatistic <- function(predResid, d) {
+  #Standardised residuals as predResid should be submitted into this function!
+  #d - number of diffuse initial values in the state,
+  n <- length(predResid) # Number of observations/residuals
+  h <- round((n-d)/3, digits = 0) #One third of the series: nearest integer to (n-d)/3; also degrees of freedom for the test
+  ratio <- sum(predResid[(n-h+1):n]^2) / sum(predResid[(d+1):(d+h)]^2) #Ratio between the variance of the residuals in the last third part of the series and the variance of residuals in the first third part of the series
+  value <- ifelse(ratio >= 1, ratio, 1/ratio) # Value of the test statistic; if the ratio is smaller than 1 then the reciprocal value is used for testing (1/ratio)
+  criticalValue <- qf(0.975, h, h) # Critical value corresponding to the upper 2.5% in the F-distribution with (h,h) degrees of freedom
+  list( #List of values provided by the function
+    h = h, #Degrees of freedom
+    ratio = ratio, #Ratio between the two variances
+    value = value, #Value of the test statistic
+    criticalValue = criticalValue #Critical value 
+  )
+}
+
+#Function for N-statistic
+#H-statistic checks normality of one-step-ahead prediction residuals 
+#This is done by testing the null hypothesis of normality
+#We assume that the residuals are normally distributed if the test statistic does not exceed the critical value at 5% level
+#(see Commandeur and Koopman, p.90-96)
+nStatistic <- function(predResid, d) {
+  #Standardised residuals as predResid should be submitted into this function!
+  #d - number of diffuse initial values in the state
+  value <- jb.norm.test(predResid[-(1:d)])$statistic #N-statistic based on the statistic calculated in the Jarque and Bera or Shenton and Bowman test;
+  criticalValue <- qchisq(0.95,2) #Critical value corresponding to the upper 5% in the chi-square-distribution with 2 degrees of freedom
+  list(#List of values provided by the function
+    value = unname(value), #Value of the test statistic
+    criticalValue = criticalValue #Critical value
+  )
+}
+
+#Function to create a table with statistics
+dTable <- function(qStatistic, rStatistic, hStatistic, nStatistic, title){
+
+cat(title)
+cat("\n")
+
+diagnosticTemplateTable <- c(
+  
+  "-----------------------------------------------------------------------------",    
+  "                    statistic    value   critical value   asumption satisfied",    
+  "-----------------------------------------------------------------------------",    
+  "independence           Q(%2d)   %7.3f            %5.2f        %1s",  # Q-statistic, 4 args    
+  "                        r(%1d)   %7.3f           +-%4.2f        %1s", # r-statistics,      4 args    
+  "                       r(%2d)   %7.3f           +-%4.2f        %1s", # r,      4 args    
+  "homoscedasticity     %-3s(%2d)   %7.3f            %5.2f        %1s",  # Homo,     5 args    
+  "normality                  N   %7.3f            %5.2f        %1s",    # N,        3 args    
+  "-----------------------------------------------------------------------------"  
+) 
+
+cat(    sprintf(      paste(diagnosticTemplateTable, collapse = "\n"),       
+                      # Q-statistic, 4 args      
+                      qStatistic$k,          
+                      qStatistic$value,      
+                      qStatistic$criticalValue,      
+                      ifelse(qStatistic$value < qStatistic$criticalValue, "+", "-"),     
+                      # r-statistic, 4 args      
+                      rStatistic$l[1],       
+                      rStatistic$value1,      
+                      rStatistic$criticalValue,      
+                      ifelse(abs(rStatistic$value1) < rStatistic$criticalValue, "+", "-"),      
+                      # r-statistic, 4 args   
+                      rStatistic$l[2],   
+                      rStatistic$value2,
+                      rStatistic$criticalValue,      
+                      ifelse(abs(rStatistic$value2) < rStatistic$criticalValue, "+", "-"),      
+                      # H-statistic, 5 args      
+                      ifelse(hStatistic$ratio > 1, "  H", "1/H"),      
+                      hStatistic$h,       
+                      hStatistic$value,       
+                      hStatistic$criticalValue,       
+                      ifelse(hStatistic$value < hStatistic$criticalValue, "+", "-"),      
+                      # N, 3 args      
+                      nStatistic$value,        
+                      nStatistic$criticalValue,      
+                      ifelse(nStatistic$value < nStatistic$criticalValue, "+", "-")    )  )  
+
+}
+
+#Function to find best initial values for optim ver. 1 
+initValOpt <- function(w_ = w , model_ = model, updatefn_ = ownupdatefn, method = "Nelder-Mead", maxLoop = 100){
+  results  <- matrix(NA, maxLoop, 2) %>% 
+    data.frame() %>%
+    `colnames<-`(c("Log.likelihood", "Initial.value"))
+  #set.seed(123)
+  cat("Loop: ")
+  for (j in 1:maxLoop){
+    cat(paste(j, " "))
+    x <- runif(1, min = 0.00001, max = 2) %>% round(3)
+    fit <- fitSSM(inits = log(rep(x, w_)), model = model_, updatefn = updatefn_, method = method)
+    maxLik <- (logLik(fit$model, method = method)/n) %>% round(7)
+    #results[j, ] <- c(round(maxLik, 7), x)
+    results[j, ] <- c(maxLik, x)
+  }     
+  cat("\n")
+  results %>% arrange(desc(Log.likelihood), Initial.value) %>% print()
+  return(results[1,2])
+}
+
+#Function to find best initial values for optim ver. 2
+initValOpt2 <- function(formula = "log(rep(x, 3))", model_ = model, updatefn_ = ownupdatefn, method = "Nelder-Mead", maxLoop = 100){
+  results  <- matrix(NA, maxLoop, 2) %>% 
+    data.frame() %>%
+    `colnames<-`(c("Log.likelihood", "Initial.value"))
+  #set.seed(123)
+  cat("Loop: ")
+  for (j in 1:maxLoop){
+    cat(paste(j, ""))
+    x <- runif(1, min = 0.00001, max = 2) %>% round(3)
+    fit <- fitSSM(inits = eval(parse(text = formula)), model = model_, updatefn = updatefn_, method = method)
+    maxLik <- (logLik(fit$model, method = method)/n) %>% round(7)
+    results[j, ] <- c(maxLik, x)
+  }     
+  cat("\n")
+  results %>% arrange(desc(Log.likelihood), Initial.value) %>% print()
+  return(results[1,2])
+}
+
+```
+
+Below, the code of the stochastic level and slope model of chapter 3 is shown as an example.
+
+Loading data:
+```{r message=FALSE, warning=FALSE}
+dataUKdriversKSI <- log(read.table("UKdriversKSI.txt")) %>% 
+  ts(start = 1969, frequency = 12)
+```
+
+Defining model:
+```{r message=FALSE, warning=FALSE}
+model <- SSModel(dataUKdriversKSI ~ SSMtrend(degree = 2, 
+         Q = list(matrix(NA), matrix(NA))),  H = matrix(NA))
+ownupdatefn <- function(pars, model){
+  model$H[,,1] <- exp(pars[1])
+  diag(model$Q[,,1]) <- exp(pars[2:3])
+  model
+}
+(model)
+```
+
+Providing the number of diffuse initial values in the state:
+```{r message=FALSE, warning=FALSE}
+d <- q <- 2 
+```
+
+Defining the number of estimated hyperparameters (i.e. disturbance variances):
+```{r message=FALSE, warning=FALSE}
+w <- 3
+```
+
+Providing the autocorrelation lag l for r-statistic (ACF function):
+```{r message=FALSE, warning=FALSE}
+l <- 12
+```
+Defining the first k autocorrelations to be used in Q-statistic:
+```{r message=FALSE, warning=FALSE}
+k <- 15
+```
+
+Providing the number of observations:
+```{r message=FALSE, warning=FALSE}
+n <- 192
+```
+
+Fitting model:
+```{r message=FALSE, warning=FALSE}
+fit <- fitSSM(model, inits = log(c(0.001, 0001, 0001)), method = "BFGS")
+outKFS <- KFS(fit$model, smoothing = c("state", "mean", "disturbance"))
+```
+
+Extracting the aaximum likelihood: 
+```{r message=FALSE, warning=FALSE}
+(maxLik <- logLik(fit$model)/n)
+```
+
+Calculating the Akaike information criterion (AIC):
+```{r message=FALSE, warning=FALSE}
+(AIC <- (-2*logLik(fit$model)+2*(w+q))/n)
+```
+
+Extracting the maximum likelihood estimate of the irregular variance:
+```{r message=FALSE, warning=FALSE}
+(H <- fit$model$H)
+```
+
+Extracting the maximum likelihood estimate of the state disturbance variance:
+```{r message=FALSE, warning=FALSE}
+(Q <- fit$model$Q)
+```
+
+Extracting the initial values of the smoothed estimates of states:
+```{r message=FALSE, warning=FALSE}
+smoothEstStat <- coef(outKFS)
+(initSmoothEstStat <- smoothEstStat[1,])
+```
+
+Extracting the values for the trend (stochastic level + slope):
+```{r message=FALSE, warning=FALSE}
+trend <-signal(outKFS, states = "trend")$signal
+head(trend, 24)
+```
+
+Showing Figure 3.1. Trend of stochastic linear trend model:
+```{r message=FALSE, warning=FALSE}
+plot(dataUKdriversKSI , xlab = "", ylab = "", lty = 1)
+lines(trend, lty = 3)
+title(main = "Figure 3.1. Trend of stochastic linear trend model", cex.main = 0.8)
+legend("topright",leg = c("log UK drivers KSI", "stochastic level and slope"), 
+       cex = 0.5, lty = c(1, 3), horiz = T)
+```
+
+Showing Figure 3.2. Slope of stochastic linear trend model:
+```{r message=FALSE, warning=FALSE}
+plot(smoothEstStat[, "slope"], xlab = "", ylab = "", lty = 1)
+title(main = "Figure 3.2. Slope of stochastic linear trend model", 
+      cex.main = 0.8)
+legend("topleft",leg = "stochastic slope", 
+       cex = 0.5, lty = 1, horiz = T)
+
+```
+
+Extracting the auxiliary irregular residuals (non-standardised):
+```{r message=FALSE, warning=FALSE}
+irregResid <- residuals(outKFS, "pearson") 
+```
+
+
+Showing Figure 3.3. Irregular component of stochastic trend model:
+```{r message=FALSE, warning=FALSE}
+plot(irregResid  , xlab = "", ylab = "", lty = 2)
+abline(h = 0, lty = 1)
+title(main = "Figure 3.3. Irregular component of stochastic trend model", cex.main = 0.8)
+legend("topright",leg = "irregular",cex = 0.5, lty = 2, horiz = T)
+```
+
+Calculating the diagnostic for one-step-ahead prediction residuals (standardised):
+```{r message=FALSE, warning=FALSE}
+predResid <- rstandard(outKFS) 
+qStat <- qStatistic(predResid, k, w)
+rStat <- rStatistic(predResid, d, l)
+hStat <- hStatistic(predResid, d)
+nStat <- nStatistic(predResid, d)
+```
+
+Showing Table 3.2 Diagnostic tests for the local linear trend model applied to the log of the UK drivers KSI:
+```{r message=FALSE, warning=FALSE}
+title = "Table 3.2 Diagnostic tests for the local linear trend model applied to \nthe log of the UK drivers KSI"
+dTable(qStat, rStat, hStat, nStat, title)
+```
+
+
+
