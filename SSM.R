@@ -488,7 +488,7 @@ k <- 15#First k autocorrelations to be used in Q-statistic
 n <- 192 #Number of observations
 
 #Fitting model and getting output
-fit <- fitSSM(model, inits = log(0.001) ,method = "BFGS")
+fit <- fitSSM(model, inits = log(0.001), method = "BFGS")
 outKFS <- KFS(fit$model, smoothing = c("state", "mean", "disturbance"))
 outKFS$model$Q
 
@@ -566,8 +566,7 @@ smoothEstStat <- coef(outKFS)
 (initSmoothEstStat <- smoothEstStat[1,])
 
 # Trend (stochastic level + slope)
-trend <- coef(outKFS, states = "level") + coef(outKFS, states = "slope")
-signal(outKFS, states = "all")$signal
+trend <-signal(outKFS, states = "trend")$signal
 
 #Figure 3.1. Trend of stochastic linear trend model
 plot(dataUKdriversKSI , xlab = "", ylab = "", lty = 1)
@@ -626,7 +625,7 @@ k <- 15#First k autocorrelations to be used in Q-statistic
 n <- 192 #Number of observations
 
 #Fitting model and getting output
-fit <- fitSSM(model, inits = log(c(0.001, 0.001)), updatefn = ownupdatefn, method = "L-BFGS-B")
+fit <- fitSSM(model, inits = log(c(0.001, 0.001)), updatefn = ownupdatefn, method = "BFGS")
 outKFS <- KFS(fit$model, smoothing = c("state", "mean", "disturbance"))
 
 #Maximum likelihood 
@@ -647,9 +646,12 @@ smoothEstStat <- outKFS$alphahat
 #Initial values of the smoothed estimates of states
 (initSmoothEstStat <- smoothEstStat[1,])
 
+# Trend (stochastic level + slope)
+trend <-signal(outKFS, states = "trend")$signal
+
 #Figure 3.4. Trend of stochastic level and deterministic slope model
 plot(dataUKdriversKSI, xlab = "", ylab = "", lty = 1)
-lines(smoothEstStat[, "level"] , lty = 3)
+lines(trend, lty = 3)
 title(main = "Figure 3.4. Trend of stochastic level and deterministic slope model", cex.main = 0.8)
 legend("topright",leg = c("log UK drivers KSI", "stochastic level and deterministic slope"), 
        cex = 0.5, lty = c(1, 3), horiz = T)
@@ -702,9 +704,6 @@ smoothEstStat <- outKFS$alphahat
 #Initial values of the smoothed estimates of states
 (initSmoothEstStat <- smoothEstStat[1,])
 
-#One-step-ahead prediction residuals (standardised)
-#predResid <- rstandard(outKFS) 
-
 
 #B) Deterministic level and stochastic slope####
 
@@ -751,11 +750,14 @@ smoothEstStat <- outKFS$alphahat
 #Initial values of the smoothed estimates of states
 (initSmoothEstStat <- smoothEstStat[1,])
 
+# Trend (stochastic level + slope)
+trend <-signal(outKFS, states = "trend")$signal
+
 #Figure 3.5. Trend of deterministic level and stochastic slope model
   # for Finnish fatalities (top) and stochastic slope component (bottom) linear trend model
 par(mfrow = c(2, 1), mar = c(1.5, 4, 4, 4))
 plot(dataFIfatalities, xlab = "", ylab = "", lty = 1)
-lines(smoothEstStat[, "level"], lty = 3)
+lines(trend, lty = 3)
 title(main = "Figure 3.5. Trend of deterministic level and stochastic slope model 
       for Finnish fatalities (top) and stochastic slope component (bottom) linear trend model", 
       cex.main = 0.8)
@@ -843,22 +845,31 @@ smoothEstStat <- coef(outKFS)
 #Initial values of the smoothed estimates of states
 (initSmoothEstStat <- smoothEstStat[1,])
 
+# Combined level and seasonal 
+levSeas <-signal(outKFS, states = "all")$signal
+
+#Level
+level <- signal(outKFS, states = "level")$signal
+
+#Seasonal
+seasonal <- signal(outKFS, states = "seasonal")$signal
+
 #Figure 4.2. Combined deterministic level and seasonal
 plot(dataUKdriversKSI, xlab = "", ylab = "", lty = 1)
-lines(smoothEstStat[, "level"] + smoothEstStat[, "sea_dummy1"], lty = 3)
+lines(levSeas, lty = 3)
 title(main = "Figure 4.2. Combined deterministic level and seasonal", cex.main = 0.8)
 legend("topright",leg = c("log UK drivers KSI", "deterministic level + seasonal"), 
        cex = 0.5, lty = c(1, 3), horiz = T)
 
 #Figure 4.3. Deterministic level
 plot(dataUKdriversKSI, xlab = "", ylab = "", lty = 1)
-lines(smoothEstStat[, "level"], lty = 3)
+lines(level, lty = 3)
 title(main = "Figure 4.3. Deterministic level", cex.main = 0.8)
 legend("topright",leg = c("log UK drivers KSI", "deterministic level"), 
        cex = 0.5, lty = c(1, 3), horiz = T)
 
 #Figure 4.4. Deterministic seasonal
-plot(smoothEstStat[, "sea_dummy1"], xlab = "", ylab = "", lty = 1)
+plot(seasonal, xlab = "", ylab = "", lty = 1)
 abline(h = 0, lty = 3)
 title(main = "Figure 4.4. Deterministic seasonal", cex.main = 0.8)
 legend("topleft",leg = "deterministic seasonal", 
@@ -910,7 +921,7 @@ n <- 192 #Number of observations
 
 #Fitting model
 #x <- initValOpt() #Finding best initial values for optim
-fit <- fitSSM(inits = log(rep(0.887, w)), model = model, updatefn = ownupdatefn, method = "L-BFGS-B")
+fit <- fitSSM(inits = log(rep(0.011, w)), model = model, updatefn = ownupdatefn, method = "Nelder-Mead")
 outKFS <- KFS(fit$model, smoothing = c("state", "mean", "disturbance"))
 
 #Maximum likelihood 
@@ -931,22 +942,32 @@ smoothEstStat <- coef(outKFS)
 #Initial values of the smoothed estimates of states
 (initSmoothEstStat <- smoothEstStat[1,])
 
+# Combined level and seasonal 
+levSeas <-signal(outKFS, states = "all")$signal
+
+#Level
+level <- signal(outKFS, states = "level")$signal
+
+#Seasonal
+seasonal <- signal(outKFS, states = "seasonal")$signal
+
+
 #Figure 4.6. Stochastic level
 plot(dataUKdriversKSI, xlab = "", ylab = "", lty = 1)
-lines(smoothEstStat[, "level"], lty = 3)
+lines(level, lty = 3)
 title(main = "Figure 4.6. Stochastic level", cex.main = 0.8)
 legend("topright",leg = c("log UK drivers KSI", "stochastic level"), 
        cex = 0.5, lty = c(1, 3), horiz = T)
 
 #Figure 4.7. Stochastic seasonal
-plot(smoothEstStat[, "sea_dummy1"], xlab = "", ylab = "", lty = 1)
+plot(seasonal, xlab = "", ylab = "", lty = 1)
 abline(h = 0, lty = 3)
 title(main = "Figure 4.4. Stochastic seasonal", cex.main = 0.8)
 legend("topleft",leg = "stochastic seasonal", 
        cex = 0.5, lty = 1, horiz = T)
 
 #Figure 4.8. Stochastic seasonal for the year 1969
-plot(window(smoothEstStat[, "sea_dummy1"], start = c( 1969, 1), end = c( 1969, 12)), xlab = "", ylab = "", lty = 1, xaxt = "n")
+plot(window(seasonal, start = c( 1969, 1), end = c( 1969, 12)), xlab = "", ylab = "", lty = 1, xaxt = "n")
 axis(1, seq(1969, 1970-1/12, length.out = 12), c("1969-Jan", "", "", "1969-Apr", "", "", "1969-July", "", "", "1969-Oct", "", ""))
 abline(h = 0, lty = 3)
 title(main = "Figure 4.8. Stochastic seasonal for the year 1969", cex.main = 0.8)
@@ -1073,16 +1094,26 @@ smoothEstStat <- coef(outKFS)
 #Auxiliary irregular residuals (non-standardised)
 irregResid <- residuals(outKFS, "pearson") 
 
+# Combined level and seasonal 
+levSeas <-signal(outKFS, states = "all")$signal
+
+#Level
+level <- signal(outKFS, states = "level")$signal
+
+#Seasonal
+seasonal <- signal(outKFS, states = "seasonal")$signal
+
+
 #Figure 4.10 Stochastic level, seasonal and irregular in UK inflation series
 par(mfrow = c(3, 1), mar = c(2, 2, 2, 2))
 plot(dataUKinflation, xlab = "", ylab = "", lty = 1)
-lines(smoothEstStat[, "level"], lty = 3)
+lines(level, lty = 3)
 title(main = "Figure 4.10 Stochastic level, seasonal and irregular in UK inflation series", 
       cex.main = 1)
 legend("topleft",leg = c("quarterly price changes in UK", "stochastic level"), 
        cex = 0.8, lty = c(1, 3), horiz = T)
 
-plot(smoothEstStat[, "sea_dummy1"], xlab = "", ylab = "", lty = 1, ylim = c(-0.006, 0.008))
+plot(seasonal, xlab = "", ylab = "", lty = 1, ylim = c(-0.006, 0.008))
 abline(h = 0, lty = 3)
 legend("topleft",leg = "stochastic seasonal", 
        cex = 0.8, lty = 1, horiz = T)
@@ -1208,9 +1239,12 @@ smoothEstStat <- coef(outKFS)
 #1% increase in the petrol price results in a x% change in the number of drivers KSI
 (elast <- smoothEstStat[1, 1] %>% unname)
 
+# Combined level and explanatory variable 'log petrol price' 
+levExpl <-signal(outKFS, states = "all")$signal
+
 #Figure 5.1. Deterministic level and explanatory variable 'log petrol price'
 plot(dataUKdriversKSI, xlab = "", ylab = "", lty = 1)
-lines(smoothEstStat[, "level"] + smoothEstStat[1, "petrolPrices"] * petrolPrices, lty = 3)
+lines(levExpl, lty = 3)
 title(main = "Figure 5.1. Deterministic level and explanatory variable 'log petrol price'", 
       cex.main = 0.8)
 legend("topright",leg = c("log UK drivers KSI", "deterministic level + beta*log(PETROL PRICE)"), 
@@ -1262,7 +1296,7 @@ k <- 15#First k autocorrelations to be used in Q-statistic
 n <- 192 #Number of observations
 
 #Fitting model
-x <- initValOpt() #Finding best initial values for optim
+#x <- initValOpt() #Finding best initial values for optim
 fit <- fitSSM(model, inits = log(rep(0.015, w)), updatefn = ownupdatefn, method = "Nelder-Mead")
 outKFS <- KFS(fit$model, smoothing = c("state", "mean", "disturbance"))
 
@@ -1288,9 +1322,12 @@ smoothEstStat <- coef(outKFS)
 #1% increase in the petrol price results in a x% change in the number of drivers KSI
 (elast <- smoothEstStat[1, 1] %>% unname)
 
+# Combined level and explanatory variable 'log petrol price' 
+levExpl <-signal(outKFS, states = "all")$signal
+
 #Figure 5.4. Stochastic level and deterministic explanatory variable 'log petrol price'
 plot(dataUKdriversKSI, xlab = "", ylab = "", lty = 1)
-lines(smoothEstStat[, "level"] + smoothEstStat[1, "petrolPrices"] * petrolPrices, lty = 3)
+lines(levExpl, lty = 3)
 title(main = "Figure 5.4. Stochastic level and deterministic explanatory variable 'log petrol price'", 
       cex.main = 0.8)
 legend("topright",leg = c("log UK drivers KSI", "stochastic level + beta*log(PETROL PRICE)"), 
@@ -1338,7 +1375,7 @@ k <- 15#First k autocorrelations to be used in Q-statistic
 n <- 192 #Number of observations
 
 #Fitting model
-x <- initValOpt(method = "BFGS") #Finding best initial values for optim
+#x <- initValOpt(method = "BFGS") #Finding best initial values for optim
 fit <- fitSSM(model, inits = log(rep(0.009, w)), updatefn = ownupdatefn, method = "BFGS")
 outKFS <- KFS(fit$model, smoothing = c("state", "mean", "disturbance"))
 
@@ -1363,9 +1400,12 @@ smoothEstStat <- coef(outKFS)
 #Elasticity: percentage change in the number of UK drivers KSI due to the seat belt law
 (elast <- 100*(exp(smoothEstStat[1, 1])-1) %>% unname)
 
+# Combined level and intervention variable 
+levInt <-signal(outKFS, states = "all")$signal
+
 #Figure 6.1. Deterministic level and intervention variable
 plot(dataUKdriversKSI, xlab = "", ylab = "", lty = 1)
-lines(smoothEstStat[, "level"] + smoothEstStat[1, "seatbeltLaw"] * seatbeltLaw, lty = 3)
+lines(levInt, lty = 3)
 title(main = "Figure 6.1. Deterministic level and intervention variable", 
       cex.main = 0.8)
 legend("topright",leg = c("log UK drivers KSI", "deterministic level + lambda*(SEATBELT LAW)"), 
@@ -1421,7 +1461,7 @@ k <- 15#First k autocorrelations to be used in Q-statistic
 n <- 192 #Number of observations
 
 #Fitting model
-x <- initValOpt() #Finding best initial values for optim
+#x <- initValOpt() #Finding best initial values for optim
 fit <- fitSSM(model, inits = log(rep(0.022, w)), updatefn = ownupdatefn, method = "Nelder-Mead")
 outKFS <- KFS(fit$model, smoothing = c("state", "mean", "disturbance"))
 
@@ -1446,9 +1486,12 @@ smoothEstStat <- coef(outKFS)
 #Elasticity: percentage change in the number of UK drivers KSI due to the seat belt law
 (elast <- 100*(exp(smoothEstStat[1, 1])-1) %>% unname)
 
+# Combined level and intervention variable 
+levInt <-signal(outKFS, states = "all")$signal
+
 #Figure 6.4. Stochastic level and intervention variable
 plot(dataUKdriversKSI, xlab = "", ylab = "", lty = 1)
-lines(smoothEstStat[, "level"] + smoothEstStat[1, "seatbeltLaw"] * seatbeltLaw, lty = 3)
+lines(levInt, lty = 3)
 title(main = "Figure 6.4. Stochastic level and intervention variable", 
       cex.main = 0.8)
 legend("topright",leg = c("log UK drivers KSI", "stochastic level + lambda*(SEATBELT LAW)"), 
@@ -1493,7 +1536,7 @@ k <- 15 #First k autocorrelations to be used in Q-statisticlogLik <- logLik( ) d
 n <- 192 #Number of observations
 
 #Fitting model
-x <- initValOpt(method = "BFGS") #Finding best initial values for optim
+#x <- initValOpt(method = "BFGS") #Finding best initial values for optim
 fit <- fitSSM(model, inits = log(rep(0.003, w)), updatefn = ownupdatefn, method = "BFGS")
 outKFS <- KFS(fit$model, smoothing = c("state", "mean", "disturbance"))
 
@@ -1522,10 +1565,12 @@ smoothEstStat <- coef(outKFS)
 #1% increase in the petrol price results in a x% change in the number of drivers KSI
 (elastPetrolPrices <- smoothEstStat[1, "petrolPrices"] %>% unname)
 
+# Combined level, explanatory variable and intervention variable 
+levExpInt <-signal(outKFS, states = c("level", "regression"))$signal
+
 #Figure 7.1. Deterministic level plus variable log petrol price and seat belt law
 plot(dataUKdriversKSI, xlab = "", ylab = "", lty = 1)
-lines(smoothEstStat[, "level"] + smoothEstStat[1, "petrolPrices"] * petrolPrices + 
-        smoothEstStat[1, "seatbeltLaw"] * seatbeltLaw, lty = 3)
+lines(levExpInt, lty = 3)
 title(main = "Figure 7.1. Deterministic level plus variable log petrol price and seat belt law", 
       cex.main = 0.8)
 legend("topright",leg = c("log UK drivers KSI", "deterministic level + beta*log(PETROL PRICE) + lambda*(SEATBELT LAW)"), 
@@ -1610,17 +1655,22 @@ smoothEstStat <- coef(outKFS)
 #1% increase in the petrol price results in a x% change in the number of drivers KSI
 (elastPetrolPrices <- smoothEstStat[1, "petrolPrices"] %>% unname)
 
+# Combined level, explanatory variable and intervention variable 
+levExpInt <-signal(outKFS, states = c("level", "regression"))$signal
+
+# Seasonal 
+seasonal <-signal(outKFS, states = "seasonal")$signal
+
 #Figure 7.2. Stochastic level plus variable log petrol price and seat belt law
 plot(dataUKdriversKSI, xlab = "", ylab = "", lty = 1)
-lines(smoothEstStat[, "level"] + smoothEstStat[1, "petrolPrices"] * petrolPrices + 
-        smoothEstStat[1, "seatbeltLaw"] * seatbeltLaw, lty = 3)
+lines(levExpInt, lty = 3)
 title(main = "Figure 7.1. Stochastic level plus variable log petrol price and seat belt law", 
       cex.main = 0.8)
 legend("topright",leg = c("log UK drivers KSI", "stochastic level + beta*log(PETROL PRICE) + lambda*(SEATBELT LAW)"), 
        cex = 0.5, lty = c(1, 3), horiz = T)
 
 #Figure 7.3. Stochastic seasonal
-plot(smoothEstStat[, "sea_dummy1"], xlab = "", ylab = "", lty = 1)
+plot(seasonal, xlab = "", ylab = "", lty = 1)
 abline(h = 0, lty = 3)
 title(main = "Figure 4.4. Stochastic seasonal", cex.main = 0.8)
 legend("topleft",leg = "stochastic seasonal", 
@@ -1771,16 +1821,23 @@ smoothEstStat <- coef(outKFS)
 #Auxiliary irregular residuals (non-standardised)
 irregResid <- residuals(outKFS, "pearson") 
 
+# Combined level and intervention variables 
+levInt <-signal(outKFS, states = c("level", "regression"))$signal
+
+# Seasonal 
+seasonal <-signal(outKFS, states = "seasonal")$signal
+
+
 #Figure 7.7 Local level (including pulse interventions), local seasonal and irregular in UK inflation time series data
 par(mfrow = c(3, 1), mar = c(2, 2, 2, 2))
 plot(dataUKinflation, xlab = "", ylab = "", lty = 1)
-lines(smoothEstStat[, "level"], lty = 3)
+lines(levInt, lty = 3)
 title(main = "Figure 7.7. Local level (including pulse interventions), local seasonal and irregular in UK inflation time series data", 
       cex.main = 1)
 legend("topleft",leg = c("quarterly price changes in UK", "stochastic level + pulse intervention variables"), 
        cex = 0.8, lty = c(1, 3), horiz = T)
 
-plot(smoothEstStat[, "sea_dummy1"], xlab = "", ylab = "", lty = 1, ylim = c(-0.006, 0.008))
+plot(seasonal, xlab = "", ylab = "", lty = 1, ylim = c(-0.006, 0.008))
 abline(h = 0, lty = 3)
 legend("topleft",leg = "stochastic seasonal", 
        cex = 0.8, lty = 1, horiz = T)
@@ -2239,7 +2296,7 @@ ownupdatefn <- function(pars, model){
 w <- 2 #Number of estimated hyperparameters (i.e. disturbance variances)
 n <- 169 #Number of observations
 #Fitting model
-x <- initValOpt() #Finding best initial values for optim
+#x <- initValOpt() #Finding best initial values for optim
 fit <- fitSSM(model, inits = log(rep(0.016, w)), updatefn = ownupdatefn, method = "Nelder-Mead")
 outPredict2 <- predict(fit$model, states = "all", interval = "prediction", 
                         level = 0.90) %>% window(start = c(1981, 12), filtered = FALSE)
