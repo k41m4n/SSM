@@ -1,9 +1,11 @@
 
 This repository provides code in R reproducing examples of the states space models presented in book ["An Introduction to State Space Time Series Analysis"](http://www.ssfpack.com/CKbook.html) by Jacques J.F. Commandeur and Siem Jan Koopman.
 
-![](Figures/cover.jpg)
+![](Figures/CKbook.png)
 
-The code is provided in file "SSM.R"" and split into sections coresponding to the following parts of the book:
+The repository uses extensively the [package KFAS](https://cran.r-project.org/web/packages/KFAS/index.html) of Jouni Helske which includes computationally efficient functions for Kalman filtering, smoothing,forecasting, and simulation of multivariate exponential family state space models. Additionally, some own functions has been created to facilitate the calculation and presentation of diagnostics.
+
+The code is provided in file "SSM.R"" and split into sections corresponding to the following parts of the book:
 
 -   Introduction
 -   Chapter 2 The Local Level Model
@@ -15,18 +17,18 @@ The code is provided in file "SSM.R"" and split into sections coresponding to th
 -   Chapter 8 General Treatment of Univariate State Space Models
 -   Chapter 9 Multivariate Time Series Analysis
 
-In R Studio, each section of the code can be executed with keys CTRL+ALT+T, after placing a coursor in that section. Please make sure to execute the first section of the code including all the functions that are used by the other sections of the code.
+In R Studio, each section of the code can be executed with keys CTRL+ALT+T, after placing a cursor in that section. Please make sure to execute the first section of the code including the own defined functions that are used by the other sections of the code.
 
 Below, the code of the stochastic level and slope model of chapter 3 is shown as an example.
 
-Loading data:
+Loading data on the UK drivers killed or seriously injured (KSI):
 
 ``` r
 dataUKdriversKSI <- log(read.table("UKdriversKSI.txt")) %>% 
   ts(start = 1969, frequency = 12)
 ```
 
-Defining the model:
+Defining the model using function `SSModelof()` of the KFAS package:
 
 ``` r
 model <- SSModel(dataUKdriversKSI ~ SSMtrend(degree = 2, 
@@ -62,7 +64,7 @@ Providing the number of diffuse initial values in the state:
 d <- q <- 2 
 ```
 
-Defining the number of estimated hyperparameters (i.e. disturbance variances):
+Defining the number of estimated hyperparameters (two state disturbance variances + irregular disturbance variance):
 
 ``` r
 w <- 3
@@ -86,7 +88,7 @@ Providing the number of observations:
 n <- 192
 ```
 
-Fitting the model:
+Fitting the model using function `fitSSM` and extracting the output using function `KFS` of the KFAS package:
 
 ``` r
 fit <- fitSSM(model, inits = log(c(0.001, 0001, 0001)), method = "BFGS")
@@ -128,7 +130,7 @@ Extracting the maximum likelihood estimate of the state disturbance variance:
 #> [2,] 0.0000000 2.774437e-09
 ```
 
-Extracting the initial values of the smoothed estimates of states:
+Extracting the initial values of the smoothed estimates of states using function `coef()` of the KFAS package:
 
 ``` r
 smoothEstStat <- coef(outKFS)
@@ -137,7 +139,7 @@ smoothEstStat <- coef(outKFS)
 #> 7.4157359290 0.0002893677
 ```
 
-Extracting the values for trend (stochastic level + slope):
+Extracting the values for trend (stochastic level + slope) using function `signal()` of the KFAS package:
 
 ``` r
 trend <-signal(outKFS, states = "trend")$signal
@@ -174,7 +176,7 @@ legend("topleft",leg = "stochastic slope",
 
 ![](Figures/unnamed-chunk-17-1.png)
 
-Extracting auxiliary irregular residuals (non-standardised):
+Extracting auxiliary irregular residuals (non-standardised) using function `residuals` of the KFAS package:
 
 ``` r
 irregResid <- residuals(outKFS, "pearson") 
@@ -191,7 +193,7 @@ legend("topright",leg = "irregular",cex = 0.5, lty = 2, horiz = T)
 
 ![](Figures/unnamed-chunk-19-1.png)
 
-Calculating the diagnostic for one-step-ahead prediction residuals (standardised):
+Extracting one-step-ahead prediction residuals (standardised) using function `rstandard()` of the KFAS package and calculating diagnostic for these residuals using own defined functions `qStatistic`, `rStatistic`, `hStatistic` and `nStatistic`:
 
 ``` r
 predResid <- rstandard(outKFS) 
@@ -201,7 +203,7 @@ hStat <- hStatistic(predResid, d)
 nStat <- nStatistic(predResid, d)
 ```
 
-Showing Table 3.2 Diagnostic tests for the local linear trend model applied to the log of the UK drivers KSI:
+Showing Table 3.2 Diagnostic tests for the local linear trend model applied to the log of the UK drivers KSI using own defined function `dTable`:
 
 ``` r
 title = "Table 3.2 Diagnostic tests for the local linear trend model applied to \n
