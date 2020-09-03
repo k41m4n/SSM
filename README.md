@@ -152,7 +152,7 @@ head(trend, 24)
 #> 1970 7.490569 7.474472 7.601383 7.708188 7.775278
 ```
 
-Showing Figure 3.1. Trend of stochastic linear trend model:
+Showing Figure 3.1. of the book for trend of stochastic linear trend model:
 
 ``` r
 plot(dataUKdriversKSI , xlab = "", ylab = "", lty = 1)
@@ -164,7 +164,7 @@ legend("topright",leg = c("log UK drivers KSI", "stochastic level and slope"),
 
 ![](Figures/unnamed-chunk-16-1.png)
 
-Showing Figure 3.2. Slope of stochastic linear trend model:
+Showing Figure 3.2. of the book for slope of stochastic linear trend model:
 
 ``` r
 plot(smoothEstStat[, "slope"], xlab = "", ylab = "", lty = 1)
@@ -182,7 +182,7 @@ Extracting auxiliary irregular residuals (non-standardised) using function `resi
 irregResid <- residuals(outKFS, "pearson") 
 ```
 
-Showing Figure 3.3. Irregular component of stochastic trend model:
+Showing Figure 3.3. of the book for irregular component of stochastic trend model:
 
 ``` r
 plot(irregResid  , xlab = "", ylab = "", lty = 2)
@@ -203,7 +203,7 @@ hStat <- hStatistic(predResid, d)
 nStat <- nStatistic(predResid, d)
 ```
 
-Showing Table 3.2 Diagnostic tests for the local linear trend model applied to the log of the UK drivers KSI using own defined function `dTable()`:
+Showing Table 3.2 of the book for diagnostic tests for the local linear trend model applied to the log of the UK drivers KSI using own defined function `dTable()`:
 
 ``` r
 title = "Table 3.2 Diagnostic tests for the local linear trend model applied to \n
