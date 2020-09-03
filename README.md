@@ -88,7 +88,7 @@ Providing the number of observations:
 n <- 192
 ```
 
-Fitting the model using function `fitSSM()` and extracting the output using function `KFS` of the KFAS package:
+Fitting the model using function `fitSSM()` and extracting the output using function `KFS()` of the KFAS package:
 
 ``` r
 fit <- fitSSM(model, inits = log(c(0.001, 0001, 0001)), method = "BFGS")
