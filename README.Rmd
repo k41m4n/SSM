@@ -237,6 +237,8 @@ Loading data on UK drivers killed or seriously injured (KSI):
 ```{r message=FALSE, warning=FALSE}
 dataUKdriversKSI <- log(read.table("UKdriversKSI.txt")) %>% 
   ts(start = 1969, frequency = 12)
+head(dataUKdriversKSI, 24)
+tail(dataUKdriversKSI, 24)
 ```
 
 Defining the model using function `SSModel()` of the KFAS package:
@@ -311,6 +313,7 @@ Extracting the values for trend (stochastic level + slope) using function `signa
 ```{r message=FALSE, warning=FALSE}
 trend <-signal(outKFS, states = "trend")$signal
 head(trend, 24)
+tail(trend, 24)
 ```
 
 Showing Figure 3.1. of the book for trend of stochastic linear trend model:
@@ -335,6 +338,8 @@ legend("topleft",leg = "stochastic slope",
 Extracting auxiliary irregular residuals (non-standardised) using function `residuals()` of the KFAS package:
 ```{r message=FALSE, warning=FALSE}
 irregResid <- residuals(outKFS, "pearson") 
+head(irregResid, 24)
+tail(irregResid, 24)
 ```
 
 
