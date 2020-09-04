@@ -239,7 +239,7 @@ dataUKdriversKSI <- log(read.table("UKdriversKSI.txt")) %>%
   ts(start = 1969, frequency = 12)
 ```
 
-Defining the model using function `SSModelof()` of the KFAS package:
+Defining the model using function `SSModel()` of the KFAS package:
 ```{r message=FALSE, warning=FALSE}
 model <- SSModel(dataUKdriversKSI ~ SSMtrend(degree = 2, 
          Q = list(matrix(NA), matrix(NA))),  H = matrix(NA))
@@ -296,7 +296,7 @@ Extracting the maximum likelihood estimate of the irregular variance:
 (H <- fit$model$H)
 ```
 
-Extracting the maximum likelihood estimate of the state disturbance variance:
+Extracting the maximum likelihood estimate of the state disturbance variances for level and slope:
 ```{r message=FALSE, warning=FALSE}
 (Q <- fit$model$Q)
 ```
